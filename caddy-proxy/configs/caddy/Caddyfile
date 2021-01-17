@@ -1,0 +1,22 @@
+
+#{
+#	auto_https disable_redirects
+#}
+
+pod2.colab.proneer.co:443 {
+#    tls {
+#        ca https://acme-staging-v02.api.letsencrypt.org/directory
+#    }
+#    bind {$ENV_HOSTNAME}
+#    route / {
+#        root * /usr/share/caddy
+#        file_server
+#    }
+    redir /vscode /vscode/
+    route /vscode/* {
+        uri strip_prefix /vscode
+        reverse_proxy http://pod2-colab:8300
+        encode zstd gzip
+        templates
+    }
+}

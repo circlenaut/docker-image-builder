@@ -1,0 +1,59 @@
+auto_https off
+
+#:{$WORKSPACE_PORT} {
+:80 {
+
+#    route / {
+#        root * /usr/share/caddy
+#        file_server
+#    }
+
+#    redir /files files/
+#    route /files/* {
+#        root * /{$WORKSPACE_HOME}
+#        file_server
+#    }
+
+#    redir /{$WORKSPACE_BASE_URL}/code /{$WORKSPACE_BASE_URL}/code/
+#    route /{$WORKSPACE_BASE_URL}/code/* {
+#        uri strip_prefix /{$WORKSPACE_BASE_URL}/code
+#        reverse_proxy {$VS_CODE_BIND_ADDR}
+#        encode zstd gzip
+#        templates
+    redir /code /code/
+    route /code/* {
+        uri strip_prefix /code
+        reverse_proxy localhost:8300
+        encode zstd gzip
+        templates
+    }
+# Set this up after:
+# https://caddyserver.com/docs/caddyfile/directives/basicauth
+# https://github.com/greenpau/caddy-auth-portal#authentication-portal
+# https://github.com/greenpau/caddy-auth-jwt
+# https://caddy.community/t/caddy-auth-portal-multiple-host-configuration-questions/10882
+# 
+#    route /auth* {
+#        auth_portal {
+#            path /auth
+#            backends {
+#                local_backend {
+#                method local
+#                path /etc/gatekeeper/auth/local/users.json
+#                realm local
+#                }
+#            }
+#            jwt {
+#                token_name access_token
+#                token_secret 0e2fdcf8-6868-41a7-884b-7308795fc286
+#            }
+#            ui {
+#                links {
+#                "Prometheus" /prometheus
+#                "Alertmanager" /alertmanager
+#                "My App" /myapp
+#                }
+#            }
+#        }
+#    }
+}

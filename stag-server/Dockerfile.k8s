@@ -1,0 +1,25 @@
+FROM registry.dev.proneer.co/stag-server:k8s
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    docker.io \
+    # Fix permissions
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y apt-transport-https
+RUN curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
+# change to kubernetes-focal when it becomes available
+RUN echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
+RUN apt-get update && apt-get install -y \
+    kubectl \
+    # Fix permissions
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    clean-layer.sh
+
+
+WORKDIR /root

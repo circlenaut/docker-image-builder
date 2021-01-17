@@ -1,0 +1,86 @@
+FROM registry.dev.proneer.co/caddy-proxy:base
+
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive \
+    BUILD_PATH="/build" \
+    SCRIPTS_PATH="/scripts" \
+    APPS_PATH="/apps"
+
+### Build and install Caddy with additional plugins
+RUN echo "**** installing xcaddy builder ****" \
+    && go get -u github.com/caddyserver/xcaddy/cmd/xcaddy
+
+RUN echo "**** building caddy ****" \
+    && CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
+        xcaddy build \
+        --with github.com/caddy-dns/gandi \
+        --with github.com/caddy-dns/cloudflare \
+        --with github.com/caddy-dns/dnspod \
+        --with github.com/caddy-dns/duckdns \
+        --with github.com/greenpau/caddy-auth-jwt \
+        --with github.com/greenpau/caddy-auth-portal \
+        --with github.com/greenpau/caddy-trace \
+        --output $BUILD_PATH"/caddy" \
+    && cp $BUILD_PATH"/caddy" /usr/bin/caddy \
+    && rm -r $BUILD_PATH"/caddy" \
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh
+
+### Install caddy dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3-tools \
+    # Fix permissions
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+### Create the caddy user
+ARG UNAME=caddy
+ARG UID=1000
+ARG GID=100
+RUN groupadd --gid $GID -o $UNAME \
+    && useradd \
+      --uid $UID \
+      --gid $GID \
+      --create-home \
+      --shell /bin/bash \ 
+      $UNAME \
+    && passwd -d $UNAME
+RUN echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME && \
+    chmod 0440 /etc/sudoers.d/$UNAME
+
+### Copy configuration files
+COPY scripts/docker-entrypoint.py /
+COPY scripts/run_caddy.py $SCRIPTS_PATH/
+COPY scripts/caddyfile.py $SCRIPTS_PATH/
+COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
+COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
+COPY configs/caddy/Caddyfile $APPS_PATH/caddy/Caddyfile
+COPY configs/caddy/test.json $APPS_PATH/caddy/test.json
+COPY configs/caddy/Caddyfile /Caddyfile
+
+### Fix permissions
+RUN \
+    chown -R $UNAME:$UNAME $BUILD_PATH \
+    && chown -R $UNAME:$UNAME $APPS_PATH \
+    && chown -R $UNAME:$UNAME $SCRIPTS_PATH \
+    && chmod -R a+rwx $BUILD_PATH \
+    && chmod -R a+rwx $APPS_PATH \
+    && chmod -R a+rwx $SCRIPTS_PATH \
+    && cp -r /root/.bashrc /home/$UNAME \
+    && echo 'cd '$APPS_PATH >> /home/$UNAME/.bashrc \
+    && chown -R $UNAME:$UNAME $APPS_PATH/caddy/ \
+    && chown -R $UNAME:$UNAME /home/$UNAME
+
+### Required for jwilder/proxy to work; either here or via --expose
+EXPOSE 80
+EXPOSE 443
+
+#ENV WORKSPACE_PORT=8300
+
+#USER $UNAME
+#WORKDIR /home/$UNAME
+CMD ["python3", "/docker-entrypoint.py"]

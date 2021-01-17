@@ -1,0 +1,136 @@
+FROM registry.dev.proneer.co/core-gpu-dev:latest
+
+USER root
+
+ENV \
+    RESOURCES_PATH="/resources" \
+    WORKSPACE_HOME="/workspace"
+
+### Install VScode server
+RUN curl -fsSL https://code-server.dev/install.sh | sh \
+    # Fix permissions
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh
+
+### Create a new user
+ARG UNAME=coder 
+ARG UID=1000
+ARG GID=100
+RUN groupadd --gid $GID -o $UNAME \
+    && useradd \
+      --uid $UID \
+      --gid $GID \
+      --create-home \
+      --shell /bin/bash \ 
+      $UNAME \
+    && passwd -d $UNAME \
+    && adduser $UNAME sudo
+RUN echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME \
+    && chmod 0440 /etc/sudoers.d/$UNAME
+WORKDIR /home/$UNAME
+
+RUN \
+    mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
+    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
+    && mkdir /scripts
+
+RUN chown -R $UNAME:$UNAME /opt
+RUN \ 
+    cp -r /root/.bashrc /home/$UNAME \
+    && cp -r /root/.conda /home/$UNAME \
+    && chown -R $UNAME:$UNAME /home/$UNAME
+    
+USER $UNAME
+
+#COPY --chown=$UNAME:$UNAME files/scripts/code-server-update.sh /opt/scripts/code-server-update.sh
+#RUN chmod 0777 /opt/scripts/code-server-update.sh
+#RUN echo '\nexport PATH="/opt/scripts:$PATH"' >> /home/$UNAME/.bashrc
+
+
+### Install Jupyter and Python 3.8
+#@TODO: Install from environment file
+RUN export PATH="/opt/conda/bin:$PATH" \
+    && conda install --quiet --yes pip python=3.8 jupyter
+
+### Pull and install VSCode extensions
+RUN /usr/bin/code-server \
+    --install-extension ms-python.python \
+    --install-extension almenon.arepl \
+    --install-extension batisteo.vscode-django \
+    --install-extension bierner.color-info \
+    --install-extension bierner.markdown-footnotes \
+    --install-extension bierner.markdown-mermaid \
+    --install-extension bierner.markdown-preview-github-styles \
+    --install-extension CoenraadS.bracket-pair-colorizer-2 \
+    --install-extension DavidAnson.vscode-markdownlint \
+    --install-extension donjayamanne.githistory \
+    --install-extension donjayamanne.python-extension-pack \
+    --install-extension eamodio.gitlens \
+    --install-extension hbenl.vscode-test-explorer \
+    --install-extension henriiik.docker-linter \
+    --install-extension kamikillerto.vscode-colorize \
+    --install-extension kisstkondoros.vscode-gutter-preview \
+    --install-extension littlefoxteam.vscode-python-test-adapter \
+    --install-extension magicstack.MagicPython \
+    --install-extension ms-azuretools.vscode-docker \
+    --install-extension ms-python.python \
+    --install-extension ms-toolsai.jupyter \
+    --install-extension naumovs.color-highlight \
+    #--install-extension RandomFractalsInc.vscode-data-preview \
+    #--install-extension searKing.preview-vscode \
+    --install-extension shd101wyy.markdown-preview-enhanced \
+    #--install-extension SimonSiefke.svg-preview \
+    --install-extension streetsidesoftware.code-spell-checker \
+    #--install-extension Syler.ignore \
+    --install-extension tht13.html-preview-vscode \
+    --install-extension tht13.python \
+    --install-extension tushortz.python-extended-snippets \
+    #--install-extension VisualStudioExptTeam.vscodeintellicode \
+    --install-extension wholroyd.jinja \
+    #--install-extension xpol.extra-markdown-plugins \
+    --install-extension yzhang.markdown-all-in-one
+
+### InstalllLocal VSCode extensions
+#COPY --chown=$UNAME:$UNAME files/extensions/ms-python.python-2020.10.332292344.vsix /tmp/ms-python.python-2020.10.332292344.vsix \
+COPY --chown=$UNAME:$UNAME files/extensions/RandomFractalsInc.vscode-data-preview-2.2.0.vsix /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix
+COPY --chown=$UNAME:$UNAME files/extensions/SimonSiefke.svg-preview-2.8.3.vsix /tmp/SimonSiefke.svg-preview-2.8.3.vsix
+    
+RUN \
+    #! code-server --install-extension /tmp/ms-python.python-2020.10.332292344.vsix || true \
+    ! code-server --install-extension /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix || true \
+    ! code-server --install-extension /tmp/SimonSiefke.svg-preview-2.8.3.vsix || true
+
+
+USER root
+### Copy some configuration files
+COPY scripts/docker-entrypoint.py /
+COPY scripts/run_workspace.py /scripts
+COPY scripts/configure_nginx.py /scripts
+COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
+COPY configs/ssh/ssh_config configs/ssh/sshd_config  /etc/ssh/
+COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
+COPY configs/caddy/caddy.conf /etc/caddy/caddy.conf
+COPY configs/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY configs/nginx/lua-extensions /etc/nginx/nginx_plugins
+COPY configs/vscode/settings.json /home/$UNAME/.config/Code/User/settings.json
+
+### Fix permissions and cleanup
+RUN \
+    fix-permissions.sh $HOME \
+    && clean-layer.sh \
+    && chmod -R a+rwx $WORKSPACE_HOME \
+    && chmod -R a+rwx $RESOURCES_PATH \
+    && echo 'cd '$WORKSPACE_HOME >> /home/$UNAME/.bashrc \
+    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
+    && chown -R $UNAME:$UNAME /home/$UNAME
+
+### Required for jwilder/proxy to work; either here or via --expose
+EXPOSE 8300
+
+ENV WORKSPACE_PORT=8300
+
+USER $UNAME
+CMD ["python3", "/docker-entrypoint.py"]

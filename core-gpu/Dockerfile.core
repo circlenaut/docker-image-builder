@@ -1,0 +1,99 @@
+FROM registry.dev.proneer.co/core-gpu:base
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive \
+    RESOURCES_PATH="/resources"
+
+### Create a resource build directory
+RUN mkdir $RESOURCES_PATH && chmod a+rwx $RESOURCES_PATH
+
+### Build and install Openresty
+RUN echo "**** installing Openresty web server ****" \
+    && OPEN_RESTY_VERSION="1.19.3.1" \
+    && mkdir $RESOURCES_PATH"/openresty" \
+    && cd $RESOURCES_PATH"/openresty" \
+    && apt-get update \
+    && apt-get purge -y \
+        nginx \
+        nginx-common \
+    # libpcre required, otherwise you get a 'the HTTP rewrite module requires the PCRE library' error
+    # Install apache2-utils to generate user:password file for nginx.
+    && apt-get install -y \
+        libssl-dev \
+        libpcre3 \
+        libpcre3-dev \
+        apache2-utils \
+    && wget --no-verbose https://openresty.org/download/openresty-$OPEN_RESTY_VERSION.tar.gz  -O ./openresty.tar.gz \
+    && tar xfz ./openresty.tar.gz \
+    && rm ./openresty.tar.gz \
+    && cd ./openresty-$OPEN_RESTY_VERSION/ \
+    # Surpress output - if there is a problem remove  > /dev/null
+    && ./configure --with-http_stub_status_module --with-http_sub_module > /dev/null \
+    && make -j2 > /dev/null \
+    && make install > /dev/null \
+    # create log dir and file - otherwise openresty will throw an error
+    && mkdir -p /var/log/nginx/ \
+    && touch /var/log/nginx/upstream.log \
+    && cd $RESOURCES_PATH \
+    && rm -r $RESOURCES_PATH"/openresty" \
+    # Fix permissions
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh
+
+ENV PATH=/usr/local/openresty/nginx/sbin:$PATH
+
+### Install Golang dev environment
+RUN echo "**** installing golang dev environment ****" \
+    && mkdir $RESOURCES_PATH"/golang" \
+    && cd $RESOURCES_PATH"/golang" \
+    && GO_VERSION=$(curl -sX GET https://golang.org/dl/ | grep -o '<span.*>.*linux-amd64.*</span>' | grep -oP '(?<=go).*(?=.linux)') \
+    && wget --quiet https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz -O ~/go.tgz \
+    && tar -C /usr/local -xzf ~/go.tgz \
+    && rm ~/go.tgz \
+    && echo "export PATH="/usr/local/go/bin:$PATH"" >> ~/.bashrc
+    #export PATH="/usr/local/go/bin:$PATH" \
+
+RUN rm -r $RESOURCES_PATH"/golang" \
+    # Fix permissions \
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh
+
+ENV GOPATH /go
+ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
+
+### Install Caddy
+#RUN echo "deb [trusted=yes] https://apt.fury.io/caddy/ /" | sudo tee -a /etc/apt/sources.list.d/caddy-fury.list
+#RUN apt-get update && apt-get install -y \
+#    caddy \
+    # Fix permissions
+#    && fix-permissions.sh $HOME \
+    # Cleanup
+#    && clean-layer.sh
+
+### Build and install Caddy with additional plugins
+RUN echo "**** installing xcaddy builder ****" \
+    && go get -u github.com/caddyserver/xcaddy/cmd/xcaddy
+
+RUN echo "**** building caddy ****" \
+    && CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
+        xcaddy build \
+        --with github.com/caddy-dns/gandi \
+        --with github.com/caddy-dns/cloudflare \
+        --with github.com/caddy-dns/dnspod \
+        --with github.com/caddy-dns/duckdns \
+        --with github.com/greenpau/caddy-auth-jwt \
+        --with github.com/greenpau/caddy-auth-portal \
+        --with github.com/greenpau/caddy-trace \
+        --output $RESOURCES_PATH"/caddy" \
+    && cp $RESOURCES_PATH"/caddy" /usr/bin/caddy \
+    && rm -r $RESOURCES_PATH"/caddy" \
+    && fix-permissions.sh $HOME \
+    # Cleanup
+    && clean-layer.sh
+
+WORKDIR /root
