@@ -1,0 +1,64 @@
+version: "3.8"
+
+networks:
+  proxy-net:
+
+services:
+  caddy-proxy:
+    image: registry.dev.proneer.co/caddy-proxy:latest
+    container_name: caddy-proxy
+    restart: unless-stopped
+    networks:
+      - proxy-net
+    ports:
+      - "80:80"
+      - "443:443"
+#      - "127.0.0.1:80:80"
+#      - "127.0.0.1:443:443"
+#      - "10.95.46.219:80:80"
+#      - "10.95.46.219:443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "./letsencrypt/certs:/etc/nginx/certs"
+#      - "./letsencrypt/vhost-d:/etc/nginx/vhost.d"
+#      - "./caddy:/etc/caddy"
+    environment:
+      DATA_PATH: "/data"
+      LETSENCRYPT_EMAIL: "admin@proneer.co"
+      LETSENCRYPT_ENDPOINT: "dev"
+#      BIND_IPS: "10.95.46.219, 127.0.0.1"
+      HTTP_PORT: "80"
+      #HTTPS_ENABLE: "true"
+      AUTO_HTTPS: "true"
+      HTTPS_PORT: "443"
+#      BASE_URL: "/caddy"
+
+  client-test1:
+    image: jwilder/whoami
+    container_name: client-test1
+    restart: unless-stopped
+    networks:
+      - proxy-net
+    environment:
+      VIRTUAL_HOST: "client-test1.proxy.dev.proneer.co"
+#      VIRTUAL_BIND_IP: "10.95.46.219"
+#      VIRTUAL_BIND_NET: "proxy"
+      VIRTUAL_PORT: "8000"
+      VIRTUAL_PROTO: "http"
+
+  client-test2:
+    image: jwilder/whoami
+    container_name: client-test2
+    restart: unless-stopped
+    networks:
+      - proxy-net
+ #     - test_net
+    environment:
+      VIRTUAL_HOST: "client-test2.proxy.dev.proneer.co"
+#      VIRTUAL_BIND_IP: "127.0.0.1"
+#      VIRTUAL_BIND_NET: "test_net"
+      VIRTUAL_PORT: "8000"
+      VIRTUAL_PROTO: "http"
+      PROXY_ENCODINGS_GZIP: "true"
+      PROXY_ENCODINGS_ZSTD: "true"
+      PROXY_TEMPLATES: "true"

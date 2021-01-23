@@ -55,6 +55,7 @@ if ENV_DATA_PATH != "/apps":
 ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
 ENV_USER = os.getenv("USER", "caddy")
 ENV_BIND_IPS = os.getenv("BIND_IPS", "127.0.0.1").split(",")
+ENV_SSL_ISSUER = os.getenv("SSL_ISSUER", "acme")
 ENV_LETSENCRYPT_EMAIL = os.getenv("LETSENCRYPT_EMAIL", "admin@example.com")
 ENV_LETSENCRYPT_ENDPOINT = os.getenv("LETSENCRYPT_ENDPOINT", "prod")
 ENV_HTTP_PORT = os.getenv("HTTP_PORT", "80")
@@ -422,6 +423,7 @@ for client, envs in proxy_clients.items():
             if servers['default'].get('routes') == None:
                 servers['default']['listen'] = [f"0.0.0.0:{ENV_HTTPS_PORT}"]
                 servers['default']['routes'] = [route]
+                servers['default']['routes'] = [route]
             else:
                 servers['default']['routes'].append(route)
 
@@ -450,11 +452,19 @@ caddy_file = {
             "automation": {
                 "policies": [{
                     "subjects": list(domains.keys()),
-                    "issuers": [{
+                    "issuers": [
+                        {
                         "module": "acme",
                         "ca": endpoint,
                         "email": ENV_LETSENCRYPT_EMAIL
-                    }],
+                        },
+                        {
+                        "module": "internal",
+                        "ca": "",
+                        "lifetime": 0,
+                        "sign_with_root": False
+                        }
+                    ],
                     "key_type": ""
                 }]
             }

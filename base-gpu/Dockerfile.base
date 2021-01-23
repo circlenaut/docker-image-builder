@@ -1,0 +1,73 @@
+FROM nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04
+
+######## Base ###########
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Copy layer cleanup script
+COPY scripts/clean-layer.sh  /usr/bin/clean-layer.sh
+COPY scripts/fix-permissions.sh  /usr/bin/fix-permissions.sh
+
+### Make clean-layer and fix-permissions executable
+RUN \
+    chmod a+rwx /usr/bin/clean-layer.sh && \
+    chmod a+rwx /usr/bin/fix-permissions.sh
+
+### Install runtime utilities
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        apt-utils \
+        apt-transport-https \
+        software-properties-common \
+        gcc \
+        python3.8 \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install basic packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        sudo \
+        cron \
+        gnupg-agent \
+        gnupg2 \
+        ca-certificates \
+        openssl \
+        iproute2 \
+        dpkg-sig \
+        uuid-dev \
+        time \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install basic utilities
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        wget \
+        curl \
+        libcurl4 \
+        bzip2 \
+        unzip \
+        g++ \
+        libgl1-mesa-glx \
+        libhdf5-dev \
+        openmpi-bin \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+WORKDIR /root

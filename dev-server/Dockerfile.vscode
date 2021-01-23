@@ -1,15 +1,27 @@
-FROM registry.dev.proneer.co/core-gpu-dev:latest
+FROM registry.dev.proneer.co/dev-gpu:latest
+
+######## VSCODE ###########
 
 USER root
 
+### Technical Environment Variables
 ENV \
+    DEBIAN_FRONTEND=noninteractive \
     RESOURCES_PATH="/resources" \
+    SCRIPTS_PATH="/scripts" \
+    APPS_PATH="/apps" \
+    DATA_PATH="/data" \
     WORKSPACE_HOME="/workspace"
 
 ### Install VScode server
-RUN curl -fsSL https://code-server.dev/install.sh | sh \
-    # Fix permissions
-    && fix-permissions.sh $HOME \
+RUN \
+    curl -fsSL https://code-server.dev/install.sh | bash \
+    # Cleanup
+    && clean-layer.sh
+
+### Install Filebrowser
+RUN \
+    curl -fsSL https://filebrowser.org/get.sh | bash \
     # Cleanup
     && clean-layer.sh
 
@@ -17,7 +29,8 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh \
 ARG UNAME=coder 
 ARG UID=1000
 ARG GID=100
-RUN groupadd --gid $GID -o $UNAME \
+RUN \
+    groupadd --gid $GID -o $UNAME \
     && useradd \
       --uid $UID \
       --gid $GID \
@@ -26,15 +39,27 @@ RUN groupadd --gid $GID -o $UNAME \
       $UNAME \
     && passwd -d $UNAME \
     && adduser $UNAME sudo
-RUN echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME \
+RUN \
+    echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME \
     && chmod 0440 /etc/sudoers.d/$UNAME
+
 WORKDIR /home/$UNAME
 
+### Setup SSH
+RUN \
+    mkdir -p /home/$UNAME/.ssh/ \
+    # create empty config file if not exists
+    touch /home/$UNAME/.ssh/config \
+    && sudo chown -R $UNAME:users /home/$UNAME/.ssh \
+    && chmod 700 /home/$UNAME/.ssh \
+    && printenv >> /home/$UNAME/.ssh/environment
+
+### Set user permissions
 RUN \
     mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
-    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
     && chown -R $UNAME:$UNAME $RESOURCES_PATH \
-    && mkdir /scripts
+    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+    && chown -R $UNAME:$UNAME $DATA_PATH
 
 RUN chown -R $UNAME:$UNAME /opt
 RUN \ 
@@ -44,15 +69,50 @@ RUN \
     
 USER $UNAME
 
+### Install and activate ZSH
+RUN mkdir $RESOURCES_PATH/zsh
+COPY files/zsh/oh-my-zsh.sh $RESOURCES_PATH/zsh/oh-my-zsh.sh
+
+RUN \
+    export PATH="/opt/conda/bin:$PATH" \
+    # Install ZSH
+    && /bin/bash $RESOURCES_PATH/zsh/oh-my-zsh.sh --install \
+    # Make zsh the default shell
+    # Initialize conda for command line activation
+    # TODO do not activate for now, opening the bash shell is a bit slow
+    # conda init bash && \
+    && conda init zsh \
+    && sudo chsh -s $(which zsh) $UNAME \
+    # Install sdkman - needs to be executed after zsh
+    && curl -s https://get.sdkman.io | bash
+
+### Install Conda base environment
+RUN \
+    export PATH="/opt/conda/bin:$PATH" \
+    && conda install -c conda-forge --quiet --yes \ 
+        python=3.8 \
+        pip \
+        #jupyter \
+        pyyaml \
+        yaml \
+        python-crontab \
+        daiquiri
+
+### Disable conda default base environment
+RUN \
+    export PATH="/opt/conda/bin:$PATH" \
+    && conda config --set auto_activate_base false
+
 #COPY --chown=$UNAME:$UNAME files/scripts/code-server-update.sh /opt/scripts/code-server-update.sh
 #RUN chmod 0777 /opt/scripts/code-server-update.sh
 #RUN echo '\nexport PATH="/opt/scripts:$PATH"' >> /home/$UNAME/.bashrc
 
-
-### Install Jupyter and Python 3.8
-#@TODO: Install from environment file
-RUN export PATH="/opt/conda/bin:$PATH" \
-    && conda install --quiet --yes pip python=3.8 jupyter
+### Configure git
+RUN \
+    git config --global core.fileMode false && \
+    git config --global http.sslVerify false && \
+    # Use store or credentialstore instead? timout == 365 days validity
+    git config --global credential.helper 'cache --timeout=31540000'
 
 ### Pull and install VSCode extensions
 RUN /usr/bin/code-server \
@@ -102,12 +162,19 @@ RUN \
     ! code-server --install-extension /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix || true \
     ! code-server --install-extension /tmp/SimonSiefke.svg-preview-2.8.3.vsix || true
 
-
 USER root
 ### Copy some configuration files
 COPY scripts/docker-entrypoint.py /
-COPY scripts/run_workspace.py /scripts
-COPY scripts/configure_nginx.py /scripts
+COPY scripts/run_workspace.py $SCRIPTS_PATH
+COPY scripts/backup_restore_config.py $SCRIPTS_PATH
+COPY scripts/setup_workspace.py $SCRIPTS_PATH
+COPY scripts/conda_parser.py $SCRIPTS_PATH
+COPY scripts/configure_nginx.py $SCRIPTS_PATH
+COPY scripts/configure_ssh.py $SCRIPTS_PATH
+COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
+COPY scripts/configure_caddy.py $SCRIPTS_PATH
+COPY scripts/configure_user.py $SCRIPTS_PATH
+COPY scripts/__init__.py $SCRIPTS_PATH
 COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 COPY configs/ssh/ssh_config configs/ssh/sshd_config  /etc/ssh/
 COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
@@ -118,13 +185,15 @@ COPY configs/vscode/settings.json /home/$UNAME/.config/Code/User/settings.json
 
 ### Fix permissions and cleanup
 RUN \
-    fix-permissions.sh $HOME \
-    && clean-layer.sh \
+    chmod -R a+rwx $RESOURCES_PATH \
     && chmod -R a+rwx $WORKSPACE_HOME \
-    && chmod -R a+rwx $RESOURCES_PATH \
+    && chmod -R a+rwx $APPS_PATH \
+    && chmod -R a+rw $DATA_PATH \
     && echo 'cd '$WORKSPACE_HOME >> /home/$UNAME/.bashrc \
-    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
     && chown -R $UNAME:$UNAME $RESOURCES_PATH \
+    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+    && chown -R $UNAME:$UNAME $APPS_PATH \
+    && chown -R $UNAME:$UNAME $DATA_PATH \
     && chown -R $UNAME:$UNAME /home/$UNAME
 
 ### Required for jwilder/proxy to work; either here or via --expose
@@ -133,4 +202,5 @@ EXPOSE 8300
 ENV WORKSPACE_PORT=8300
 
 USER $UNAME
-CMD ["python3", "/docker-entrypoint.py"]
+
+ENTRYPOINT ["python3", "/docker-entrypoint.py"]

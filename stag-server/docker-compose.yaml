@@ -1,0 +1,78 @@
+version: "3.8"
+
+networks:
+  proxy-net:
+
+services:
+  stag-proxy:
+    image: registry.dev.proneer.co/caddy-proxy:latest
+    container_name: stag-proxy
+    restart: unless-stopped
+    networks:
+      - proxy-net
+    ports:
+#      - "80:80"
+#      - "443:443"
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+#      - "10.95.46.219:80:80"
+#      - "10.95.46.219:443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "./caddy:/etc/caddy"
+    environment:
+      DATA_PATH: "/data"
+      LETSENCRYPT_EMAIL: "admin@proneer.co"
+      LETSENCRYPT_ENDPOINT: "dev"
+#      BIND_IPS: "10.95.46.219, 127.0.0.1"
+      HTTP_PORT: "80"
+      #HTTPS_ENABLE: "true"
+      AUTO_HTTPS: "true"
+      HTTPS_PORT: "443"
+#      BASE_URL: "/caddy"
+
+  stag-test:
+    image: registry.dev.proneer.co/stag-server-app:latest
+    container_name: stag-test
+    restart: unless-stopped
+    runtime: nvidia
+#    ports:
+#      - "22:22"
+#      - "8080:8080"
+#    expose:
+#       - "8080"
+    networks:
+      - proxy-net
+#    volumes:
+#      - "./stag-test/envs:/opt/conda/envs"
+#      - "/data/workspaces/pod2:/workspace"
+#      - "./stag-test/environment.yml:/data/environment.yml"
+#      - "./conda-parser:/data/conda-parser"
+#      - "/home/guests/phillip/nfs/Docker-Images/cp-vton-plus:/data/cp-vton-plus"
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#          - 'driver': 'nvidia'
+#            'count': 1
+#            'capabilities': ['gpu', 'utility']
+    environment:
+      VIRTUAL_HOST: "test.stag.proneer.co"
+#      VIRTUAL_BIND_IP: "10.95.46.219"
+#      VIRTUAL_BIND_NET: "proxy"
+      VIRTUAL_PORT: "8300"
+      VIRTUAL_PROTO: "http"
+      VIRTUAL_BASE_URL: "/code"
+      PROXY_ENCODINGS_GZIP: "true"
+      PROXY_ENCODINGS_ZSTD: "true"
+      PROXY_TEMPLATES: "true"
+      WORKSPACE_SSL_ENABLED: "false"
+      WORKSPACE_AUTH_USER: "coder"
+      WORKSPACE_AUTH_PASSWORD: "${POD2_AUTH_PASSWORD:-'password'}"
+#      WORKSPACE_PORT: "8080"
+      VSCODE_BIND_ADDR: "0.0.0.0:8300"
+ #     CONDA_ENV_PATH: "/data/environment.yml"
+      CONFIG_BACKUP_ENABLED: "true"
+#      SHARED_LINKS_ENABLED: "true"
+#      MAX_NUM_THREADS: "auto"
+      NVIDIA_VISIBLE_DEVICES: "all"

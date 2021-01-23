@@ -1,3 +1,5 @@
+# Disabled in lieu of caddy
+
 [program:nginx]
 environment=
     HOME=%(ENV_HOME)s,

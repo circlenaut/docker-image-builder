@@ -32,14 +32,8 @@ def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False)
     run("export " + env_variable + '="' + value + '"', shell=True)
     os.environ[env_variable] = value
 
-
-os.environ['WORKSPACE_PORT'] = os.getenv("WORKSPACE_PORT", "8080")
-#os.environ['WORKSPACE_AUTH_PASSWORD'] = os.getenv("", "alliance")
-
-ENV_NAME_WORKSPACE_BASE_URL = os.getenv("WORKSPACE_BASE_URL", "/")
-base_url = os.getenv(ENV_NAME_WORKSPACE_BASE_URL, "")
-log.info(f"workspace baseurl: {base_url}")
-
+ENV_STAGING_BASE_URL = os.getenv("STAGING_BASE_URL", "/")
+base_url = os.getenv(ENV_STAGING_BASE_URL, "")
 # Add leading slash
 if not base_url.startswith("/"):
     base_url = "/" + base_url
@@ -48,9 +42,6 @@ if not base_url.startswith("/"):
 base_url = base_url.rstrip("/").strip()
 # always quote base url
 base_url = quote(base_url, safe="/%")
-
-set_env_variable(ENV_NAME_WORKSPACE_BASE_URL, base_url)
-os.environ['NAME_WORKSPACE_BASE_URL'] = os.getenv("WORKSPACE_BASE_URL", base_url)
 
 # Dynamiruny set MAX_NUM_THREADS
 ENV_MAX_NUM_THREADS = os.getenv("MAX_NUM_THREADS", None)
@@ -117,12 +108,9 @@ if ENV_MAX_NUM_THREADS:
     set_env_variable("TBB_NUM_THREADS", ENV_MAX_NUM_THREADS, ignore_if_set=True)  # TBB
     # GOTO_NUM_THREADS
 
-# pass all script arguments to next script
-script_arguments = " " + " ".join(sys.argv[1:])
-
 sys.exit(
     run(
-        "python3 /scripts/run_workspace.py" + script_arguments,
+        "python3 /scripts/run_staging.py",
         shell=True,
     )
 )

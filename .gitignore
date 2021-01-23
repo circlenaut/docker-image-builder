@@ -1,6 +1,7 @@
 # ---> Proneer
 # Exclude System Files
 *.DS_Store
+*.swp
 
 # Exclude Images
 *.jpg
@@ -121,13 +122,13 @@ celerybeat.pid
 *.sage.py
 
 ## Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+*.env
+*.venv
+*env/
+*venv/
+*ENV/
+*env.bak/
+*venv.bak/
 
 ## Spyder project settings
 .spyderproject
@@ -229,8 +230,8 @@ prime/
 *.snap-build
 *_source.tar.bz2
 
-
-# Exclude Data Directories
+# Exclude Test Data Directories
+/dev-server/tests
 
 
 

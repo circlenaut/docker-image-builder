@@ -1,10 +1,14 @@
 FROM registry.dev.proneer.co/core-gpu-k8s:latest
 
+######## K8S VSCODE ###########
+
 USER root
 
+### Technical Environment Variables
 ENV \
     RESOURCES_PATH="/resources" \
-    WORKSPACE_HOME="/workspace"
+    WORKSPACE_HOME="/workspace" \
+    DATA_PATH="/data"
 
 RUN curl -fsSL https://code-server.dev/install.sh | sh \
     # Fix permissions
@@ -31,8 +35,9 @@ WORKDIR /home/$UNAME
 
 RUN \
     mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
-    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
     && chown -R $UNAME:$UNAME $RESOURCES_PATH \
+    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+    && chown -R $UNAME:$UNAME $DATA_PATH \
     && mkdir /scripts
 
 RUN chown -R $UNAME:$UNAME /opt
