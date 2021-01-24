@@ -27,6 +27,10 @@ ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
 ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
 
+### Clean up envs
+workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
+data_dir = os.path.normpath(ENV_DATA_PATH)
+
 ### Set application envs
 code_server_env = os.environ.copy()
 code_server_env['PASSWORD'] =  os.getenv("WORKSPACE_AUTH_PASSWORD", "alliance")
@@ -57,13 +61,10 @@ subprocess.run("sudo --preserve-env python3 /scripts/configure_ssh.py", shell=Tr
 log.info("Configure caddy service")
 subprocess.run("sudo --preserve-env python3 /scripts/configure_caddy.py", shell=True)
 
-log.info("Configure nginx service")
-subprocess.run("sudo --preserve-env python3 /scripts/configure_nginx.py", shell=True)
-
 log.info("Configure filebrowser service")
 subprocess.run("sudo --preserve-env python3 /scripts/configure_filebrowser.py", shell=True)
 
-startup_custom_script = os.path.join(ENV_WORKSPACE_HOME, "on_startup.sh")
+startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
 if os.path.exists(startup_custom_script):
     log.info("Run on_startup.sh user script from workspace folder")
     # run startup script from workspace folder - can be used to run installation routines on workspace updates
@@ -75,16 +76,14 @@ subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py ba
 # start backup restore config process
 subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py schedule", shell=True)
 
+### Fix permissions before creating envs and starting
+log.info(f"fixing permissions for '{ENV_USER}'")
+subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', workspace_dir])
+subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', data_dir])
+
+### Create conda environments
 create_envs = ['/opt/conda/bin/conda', 'run','-n', 'base', 'python', '-u', '/scripts/setup_workspace.py']
 subprocess.run(create_envs)
-
-#command = ['code-server', '--host', '0.0.0.0', '--auth', 'password', '--port', '8300']
-#subprocess.check_call(command, env=code_server_env)
-
-### Fix permissions before starting
-log.info(f"fixing permissions for '{ENV_USER}'")
-subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', ENV_WORKSPACE_HOME])
-subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', ENV_DATA_PATH])
 
 ### Preserve docker environment variables and run supervisor process - main container process
 log.info("Start supervisor")

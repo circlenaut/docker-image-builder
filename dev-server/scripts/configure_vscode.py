@@ -1,10 +1,12 @@
 #!/usr/bin/python
 
+#@TODO
+# - this is a placeholder
+
 """
 Configure vscode service
 """
 
-from subprocess import run
 import os
 import shutil
 import sys
@@ -12,9 +14,10 @@ import json
 import docker
 import bcrypt
 import logging
-from pathlib import Path
+from pathlib      import Path
 from urllib.parse import quote, urljoin
-from copy import copy
+from copy         import copy
+from subprocess   import run
 
 def clean_url(base_url):
     # set base url

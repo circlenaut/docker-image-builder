@@ -4,16 +4,16 @@
 Configure filebrowser service
 """
 
-from subprocess import run
 import os
 import shutil
 import sys
 import json
 import docker
 import bcrypt
-from pathlib import Path
+from pathlib      import Path
 from urllib.parse import quote, urljoin
-from copy import copy
+from copy         import copy
+from subprocess   import run
 
 ### Enable logging
 import logging
@@ -24,9 +24,9 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
-### Set  envs
+#@TODO: Turn this into a dictionary/function
+### Read system envs
 ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
-#ENV_USER = os.getenv("USER", "coder")
 ENV_USER = os.getenv("SUDO_USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
 ENV_FB_PORT = os.getenv("FB_PORT", "8055")
@@ -38,11 +38,7 @@ ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
 ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
 
-#clients = docker.from_env()
-#host_container = clients.containers.get(ENV_HOSTNAME)
-#host = host_container.name
-
-### Set base url
+### Clean up envs
 application = "filebrowser"
 port = int(ENV_FB_PORT)
 host_base_url = ENV_VIRTUAL_BASE_URL.rstrip("/").strip()
@@ -54,7 +50,12 @@ base_url = quote(base_url, safe="/%")
 full_base_url = urljoin(host_base_url, base_url)
 log.info(f"{application} base URL: '{full_base_url}'")
 
-### Set paths
+#@TODO: add this later to enable proxy's base url
+#clients = docker.from_env()
+#host_container = clients.containers.get(ENV_HOSTNAME)
+#host = host_container.name
+
+### Set config and data paths
 config_dir = os.path.join("/etc", application)
 if not os.path.exists(config_dir):
     os.mkdir(config_dir)

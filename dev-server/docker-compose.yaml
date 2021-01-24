@@ -80,11 +80,12 @@ services:
     networks:
       - proxy
     volumes:
-      - "./tests/pod2-colab/envs:/opt/conda/envs"
-#      - "/data/workspaces/pod2:/workspace"
+#      - "./tests/pod2-colab/envs:/opt/conda/envs"
+      - "/data/workspaces/pod2/envs:/opt/conda/envs"
+      - "/data/workspaces/pod2/workspace:/workspace"
 #      - "./tests/pod2-colab/environment.yml:/data/environment.yml"
-#      - "./tests/conda-parser:/data/conda-parser"
-#      - "/home/guests/phillip/nfs/Docker-Images/cp-vton-plus:/data/cp-vton-plus"
+      - "./tests/conda-parser:/data/conda-parser"
+      - "/home/guests/phillip/nfs/Docker-Images/cp-vton-plus:/data/cp-vton-plus"
 #    deploy:
 #      resources:
 #        reservations:

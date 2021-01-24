@@ -82,6 +82,7 @@ RUN \
         catimg \
         # Net tools
         net-tools \
+        dnsutils \
         iputils-ping \
         iputils-tracepath \
         netcat \
@@ -146,8 +147,6 @@ RUN \
         libbz2-dev \
         liblzma-dev \
         zlib1g-dev \
-        # Required for daiquiri
-        libsystemd-dev \
     # Cleanup
     && clean-layer.sh \
     # Fix permissions
@@ -191,8 +190,6 @@ ENV PATH="/opt/node/bin:$PATH"
 RUN \
     echo "**** installing java dev environment ****" \
     apt-get update \
-    # libgl1-mesa-dri > 150 MB -> Install jdk-headless version (without gui support)?
-    # java runtime is extenable via the java-utils.sh tool intstaller script
     && apt-get install -y --no-install-recommends openjdk-11-jdk maven scala \
     # Cleanup
     && clean-layer.sh
@@ -209,7 +206,6 @@ RUN \
     && tar -C /usr/local -xzf ~/go.tgz \
     && rm ~/go.tgz \
     && echo "export PATH="/usr/local/go/bin:$PATH"" >> ~/.bashrc \
-    #export PATH="/usr/local/go/bin:$PATH" \
     # Cleanup
     && clean-layer.sh
 
@@ -311,7 +307,6 @@ RUN \
     && clean-layer.sh \
     # Fix permissions
     && fix-permissions.sh $HOME
-#RUN ssh-keygen -A && mkdir -p /run/sshd
 
 ### Install and activate Conda
 ENV CONDA_BIN="/opt/conda"
@@ -363,7 +358,6 @@ RUN \
     mkdir -p "$PIPX_HOME" "$PIPX_BIN_DIR" && chmod -R 777 "$PIPX_HOME" \
     && pip3 install \
         pipx \
-        daiquiri[systemd] \
         python-crontab \
         pyyaml \
         typing \
@@ -371,9 +365,6 @@ RUN \
         ansible \
         passlib \
         bcrypt \
-        jk-typing \
-        jk-etcpasswd \
-#    && python3 -m pipx ensurepath \
     # Cleanup
     && clean-layer.sh
 

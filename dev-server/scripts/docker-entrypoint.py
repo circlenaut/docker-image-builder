@@ -4,15 +4,15 @@
 Main Workspace Run Script
 """
 
-# Enable logging
 import logging
 import math
 import os
 import sys
 import subprocess
-from subprocess import run
+from subprocess   import run
 from urllib.parse import quote
 
+### Enable logging
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     level=logging.INFO,
@@ -23,7 +23,6 @@ log = logging.getLogger(__name__)
 
 log.info("Starting...")
 
-
 def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False):
     if ignore_if_set and os.getenv(env_variable, None):
         # if it is already set, do not set it to the new value
@@ -32,10 +31,8 @@ def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False)
     run("export " + env_variable + '="' + value + '"', shell=True)
     os.environ[env_variable] = value
 
-
+### Set Workspace base URL
 os.environ['WORKSPACE_PORT'] = os.getenv("WORKSPACE_PORT", "8080")
-#os.environ['WORKSPACE_AUTH_PASSWORD'] = os.getenv("", "alliance")
-
 ENV_NAME_WORKSPACE_BASE_URL = os.getenv("WORKSPACE_BASE_URL", "/")
 base_url = os.getenv(ENV_NAME_WORKSPACE_BASE_URL, "")
 log.info(f"workspace baseurl: {base_url}")
@@ -52,7 +49,7 @@ base_url = quote(base_url, safe="/%")
 set_env_variable(ENV_NAME_WORKSPACE_BASE_URL, base_url)
 os.environ['NAME_WORKSPACE_BASE_URL'] = os.getenv("WORKSPACE_BASE_URL", base_url)
 
-# Dynamiruny set MAX_NUM_THREADS
+### Dynamiruny set MAX_NUM_THREADS
 ENV_MAX_NUM_THREADS = os.getenv("MAX_NUM_THREADS", None)
 if ENV_MAX_NUM_THREADS:
     # Determine the number of availabel CPU resources, but limit to a max number
@@ -117,12 +114,10 @@ if ENV_MAX_NUM_THREADS:
     set_env_variable("TBB_NUM_THREADS", ENV_MAX_NUM_THREADS, ignore_if_set=True)  # TBB
     # GOTO_NUM_THREADS
 
-# pass all script arguments to next script
-script_arguments = " " + " ".join(sys.argv[1:])
-
+### Start workspace
 sys.exit(
     run(
-        "python3 /scripts/run_workspace.py" + script_arguments,
+        "python3 /scripts/run_workspace.py",
         shell=True,
     )
 )

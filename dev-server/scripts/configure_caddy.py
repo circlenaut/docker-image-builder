@@ -4,7 +4,6 @@
 Configure caddy service
 """
 
-from subprocess import run
 import os
 import shutil
 import sys
@@ -12,9 +11,10 @@ import json
 import docker
 import bcrypt
 import logging
-from pathlib import Path
+from pathlib      import Path
 from urllib.parse import quote, urljoin
-from copy import copy
+from copy         import copy
+from subprocess   import run
 
 def clean_url(base_url):
     # set base url
@@ -34,7 +34,6 @@ log = logging.getLogger(__name__)
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
 ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
-#ENV_USER = os.getenv("USER", "coder")
 ENV_USER = os.getenv("SUDO_USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")

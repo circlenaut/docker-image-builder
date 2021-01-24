@@ -7,9 +7,9 @@ import sys
 import re
 import typing
 import yaml
-from yaml import CLoader
-from conda.api import Solver
-from conda.exceptions import ResolvePackageNotFound
+from yaml                    import CLoader
+from conda.api               import Solver
+from conda.exceptions        import ResolvePackageNotFound
 from conda.models.match_spec import MatchSpec
 
 ### Enable logging

@@ -54,6 +54,9 @@ RUN \
     && chmod 700 /home/$UNAME/.ssh \
     && printenv >> /home/$UNAME/.ssh/environment
 
+### Fix logging
+RUN sed -i '/imklog/s/^/#/' /etc/rsyslog.conf
+
 ### Set user permissions
 RUN \
     mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
@@ -85,6 +88,8 @@ RUN \
     && sudo chsh -s $(which zsh) $UNAME \
     # Install sdkman - needs to be executed after zsh
     && curl -s https://get.sdkman.io | bash
+### for bash
+###eval "$(register-python-argcomplete pipx)"
 
 ### Install Conda base environment
 RUN \
@@ -92,11 +97,8 @@ RUN \
     && conda install -c conda-forge --quiet --yes \ 
         python=3.8 \
         pip \
-        #jupyter \
         pyyaml \
-        yaml \
-        python-crontab \
-        daiquiri
+        yaml
 
 ### Disable conda default base environment
 RUN \
@@ -164,23 +166,26 @@ RUN \
 
 USER root
 ### Copy some configuration files
+# copy workspace scripts
+COPY scripts/__init__.py $SCRIPTS_PATH
 COPY scripts/docker-entrypoint.py /
 COPY scripts/run_workspace.py $SCRIPTS_PATH
-COPY scripts/backup_restore_config.py $SCRIPTS_PATH
 COPY scripts/setup_workspace.py $SCRIPTS_PATH
+COPY scripts/configure_user.py $SCRIPTS_PATH
+COPY scripts/backup_restore_config.py $SCRIPTS_PATH
+# copy custom libraries
 COPY scripts/conda_parser.py $SCRIPTS_PATH
-COPY scripts/configure_nginx.py $SCRIPTS_PATH
+COPY scripts/users_mod.py $SCRIPTS_PATH
+# copy application scripts
 COPY scripts/configure_ssh.py $SCRIPTS_PATH
 COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
 COPY scripts/configure_caddy.py $SCRIPTS_PATH
-COPY scripts/configure_user.py $SCRIPTS_PATH
-COPY scripts/__init__.py $SCRIPTS_PATH
-COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
-COPY configs/ssh/ssh_config configs/ssh/sshd_config  /etc/ssh/
+# copy supervisor configs
 COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
-COPY configs/caddy/caddy.conf /etc/caddy/caddy.conf
-COPY configs/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY configs/nginx/lua-extensions /etc/nginx/nginx_plugins
+COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
+# copy ssh config
+COPY configs/ssh/ssh_config configs/ssh/sshd_config  /etc/ssh/
+# copy vscode config
 COPY configs/vscode/settings.json /home/$UNAME/.config/Code/User/settings.json
 
 ### Fix permissions and cleanup
@@ -195,11 +200,6 @@ RUN \
     && chown -R $UNAME:$UNAME $APPS_PATH \
     && chown -R $UNAME:$UNAME $DATA_PATH \
     && chown -R $UNAME:$UNAME /home/$UNAME
-
-### Required for jwilder/proxy to work; either here or via --expose
-EXPOSE 8300
-
-ENV WORKSPACE_PORT=8300
 
 USER $UNAME
 

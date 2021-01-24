@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+#@TODO
+# - clean this up and make consistent with other scripts
+
 """
 Configure ssh service
 """

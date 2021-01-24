@@ -1,6 +1,21 @@
 # Inspiration:
 # https://ubuntuforums.org/showthread.php?t=831372
 
+#Port 22
+#AddressFamily any
+#ListenAddress 0.0.0.0
+#ListenAddress ::
+
+#Port 22
+#AddressFamily any
+#ListenAddress 0.0.0.0
+#ListenAddress ::
+
+#Port 22
+#AddressFamily any
+#ListenAddress 0.0.0.0
+#ListenAddress ::
+
 # Logging Configuration
 SyslogFacility AUTH
 LogLevel INFO
@@ -19,12 +34,17 @@ PermitUserEnvironment yes
 ClientAliveInterval 60
 ClientAliveCountMax 10
 
+PrintMotd no
+
+Banner none
+
 # Allow Remote Port forwarding to an address other than localhost
 # https://askubuntu.com/questions/50064/reverse-port-tunnelling
 GatewayPorts clientspecified
 
 # Only allow key-based authentication -> higher security
-PasswordAuthentication yes
+PasswordAuthentication no
+PubkeyAuthentication yes
 ChallengeResponseAuthentication no
 GSSAPIAuthentication no
 IgnoreRhosts yes
@@ -45,3 +65,22 @@ X11DisplayOffset 10
 
 # Disable permissions checks on keyfiles and directories
 StrictModes no
+
+###@TODO Append these via a script
+Match address 127.0.0.0/24
+    PasswordAuthentication yes
+    PermitRootLogin yes
+Match address 10.0.0.0/8
+    PasswordAuthentication yes
+    PermitRootLogin no
+Match address 172.0.0.0/8
+    PasswordAuthentication yes
+    PermitRootLogin no
+Match address 192.0.0.0/8
+    PasswordAuthentication yes
+    PermitRootLogin no
+Match address 120.31.58.0/24
+    PasswordAuthentication yes
+    PermitRootLogin no
+Match address 52.117.1.25
+    PasswordAuthentication yes

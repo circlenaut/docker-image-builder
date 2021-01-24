@@ -1,6 +1,6 @@
 {
     "extensions.autoUpdate": false,
-    "terminal.integrated.shell.linux": "/bin/bash",
+    "terminal.integrated.shell.linux": "/bin/zsh",
     "python.dataScience.useDefaultConfigForJupyter": false,
     "python.pythonPath": "/opt/conda/bin/python",
     "files.exclude": {

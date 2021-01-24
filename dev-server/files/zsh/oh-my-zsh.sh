@@ -31,7 +31,7 @@ if ! hash zsh 2>/dev/null; then
     # Install fkill-cli: (too big - 30MB) npm install --global fkill-cli && \
     yes | sh -c "$(curl -fsSL https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
     # Install powerlevel10k for instant prompt
-    # git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
     # https://www.reddit.com/r/zsh/comments/dht4zt/make_zsh_start_instantly_with_this_one_weird_trick/
     # Install plugins
     git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
@@ -59,11 +59,14 @@ if ! hash zsh 2>/dev/null; then
     y | $RESOURCES_PATH/.fzf/install
 
     # TODO install zsh completions?
-    # sudo sh -c "echo 'deb http://download.opensuse.org/repositories/shells:/zsh-users:/zsh-completions/xUbuntu_16.04/ /' > /etc/apt/sources.list.d/shells:zsh-users:zsh-completions.list"
-    # wget -nv https://download.opensuse.org/repositories/shells:zsh-users:zsh-completions/xUbuntu_16.04/Release.key -O Release.key
-    # sudo apt-key add - < Release.key
-    # sudo apt-get update
-    # sudo apt-get install zsh-completions
+    sudo sh -c "echo 'deb http://download.opensuse.org/repositories/shells:/zsh-users:/zsh-completions/xUbuntu_19.10/ /' | sudo tee /etc/apt/sources.list.d/shells:zsh-users:zsh-completions.list"
+    curl -fsSL https://download.opensuse.org/repositories/shells:zsh-users:zsh-completions/xUbuntu_19.10/Release.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/shells_zsh-users_zsh-completions.gpg > /dev/null
+    sudo apt-get update
+    sudo apt-get install zsh-completions
+
+    sudo --preserve-env autoload -U bashcompinit
+    sudo --preserve-env bashcompinit
+    sudo --preserve-env eval "$(register-python-argcomplete pipx)"
 
 else
     echo "ZSH is already installed"
