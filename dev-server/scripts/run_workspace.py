@@ -25,11 +25,15 @@ ENV_USER = os.getenv("USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
+ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
 ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
+ENV_APP_ROOT_DIR = os.getenv("APP_ROOT_DIR", "/apps/app")
 
 ### Clean up envs
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
+apps_dir = os.path.normpath(ENV_APPS_PATH)
 data_dir = os.path.normpath(ENV_DATA_PATH)
+app_dir = os.path.normpath(ENV_APP_ROOT_DIR)
 
 ### Set application envs
 code_server_env = os.environ.copy()
@@ -49,20 +53,23 @@ workspace_password = os.environ['WORKSPACE_AUTH_PASSWORD']
 log.info(f"user '{ENV_USER}' password is: '{workspace_password}'")
 
 ### Run setup scripts
-# restore config on startup - if CONFIG_BACKUP_ENABLED - it needs to run before other configuration 
-subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py restore", shell=True)
+# restore config on startup - if CONFIG_BACKUP_ENABLED - it needs to run before other configuration
+action = "restore"
+log.info(f"backup script: '{action}'")
+subprocess.run(['sudo', '--preserve-env', 'python3', '/scripts/backup_restore_config.py', action])
+#subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py restore", shell=True)
 
-log.info("Configure user")
-subprocess.run("sudo --preserve-env python3 /scripts/configure_user.py", shell=True)
+# configure services as sudo
+services = ["user", "ssh", "caddy", "filebrowser", "app"]
+for serv in services:
+    log.info(f"configuring service: '{serv}'")
+    subprocess.run(['sudo', '--preserve-env', 'python3', f"/scripts/configure_{serv}.py"])
 
-log.info("Configure ssh service")
-subprocess.run("sudo --preserve-env python3 /scripts/configure_ssh.py", shell=True)
-
-log.info("Configure caddy service")
-subprocess.run("sudo --preserve-env python3 /scripts/configure_caddy.py", shell=True)
-
-log.info("Configure filebrowser service")
-subprocess.run("sudo --preserve-env python3 /scripts/configure_filebrowser.py", shell=True)
+# configure user services
+services = ["zsh"]
+for serv in services:
+    log.info(f"configuring service: '{serv}'")
+    subprocess.run(['python3', f"/scripts/configure_{serv}.py"])
 
 startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
 if os.path.exists(startup_custom_script):
@@ -71,15 +78,22 @@ if os.path.exists(startup_custom_script):
     subprocess.run("/bin/bash " + startup_custom_script, shell=True)
 
 # backup config directly on startup (e.g. ssh key)
-subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py backup", shell=True)
+action = "backup"
+log.info(f"backup script: '{action}'")
+subprocess.run(['sudo', '--preserve-env', 'python3', '/scripts/backup_restore_config.py', action])
+#subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py backup", shell=True)
 
 # start backup restore config process
-subprocess.run("sudo --preserve-env python3 /scripts/backup_restore_config.py schedule", shell=True)
+action = "schedule"
+log.info(f"backup script: '{action}'")
+subprocess.run(['sudo', '--preserve-env', 'python3', '/scripts/backup_restore_config.py', action])
 
 ### Fix permissions before creating envs and starting
-log.info(f"fixing permissions for '{ENV_USER}'")
-subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', workspace_dir])
-subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', data_dir])
+user_dirs = [ENV_HOME, workspace_dir, data_dir, apps_dir, app_dir]
+
+for d in user_dirs:
+    log.info(f"fixing permissions for '{ENV_USER}' on '{d}'")
+    subprocess.run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', d])
 
 ### Create conda environments
 create_envs = ['/opt/conda/bin/conda', 'run','-n', 'base', 'python', '-u', '/scripts/setup_workspace.py']

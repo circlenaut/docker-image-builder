@@ -25,12 +25,12 @@ def check_user_exists(username):
 
      for user in user_records:
           if user.get("userName") == username:
-               print(json.dumps(user, indent = 4))
+               record = json.dumps(user, indent = 4)
                exists = "yes"
                break
           else:
                exists = "no"
-     return exists
+     return exists, record
 
 def run_pass_change(username, hash):
      log.info(f"new password hash: '{hash}'")
@@ -43,7 +43,6 @@ def run_pass_change(username, hash):
      else:
           log.info('password change: error')
           return 'error'
-
 
 def check_current_pass(username):
      current_password_hash = spwd.getspnam(username).sp_pwdp
@@ -72,7 +71,7 @@ def check_old_pass(username, password):
           return 'error'
 
 def change_pass(username, old_password, new_password):
-     user_exists = check_user_exists(username)
+     user_exists, record = check_user_exists(username)
      if user_exists == 'yes':
           current_password_hash = spwd.getspnam(username).sp_pwdp
           log.info(f"current password hash: '{current_password_hash}'")
@@ -96,8 +95,27 @@ def change_pass(username, old_password, new_password):
                return 1
           elif old_pass == 'error':
                return 126
-     elif old_pass == 'error':
-          return 126
+          elif old_pass == 'error':
+               return 126
+     elif user_exists == 'no':
+          log.info(f"user: '{username}' does not exist")
+          return 1
+     else:
+          log.info("unknown error")
+
+def change_user_shell(username, shell):
+     user_exists, record = check_user_exists(username)
+     if user_exists == 'yes':
+          log.info(f"'{username}' shell changed to: '{shell}'")
+          cmd = ['usermod', '--shell', shell, username]
+          return_code = call(cmd)
+
+          if return_code == 0:
+               log.info('password change: success')
+               return 'success'
+          else:
+               log.info('password change: error')
+               return 'error'
      elif user_exists == 'no':
           log.info(f"user: '{username}' does not exist")
           return 1
@@ -114,7 +132,6 @@ log = logging.getLogger(__name__)
 
 ### Read system envs
 ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
-#ENV_USER = os.getenv("USER", "coder")
 ENV_USER = os.getenv("SUDO_USER", "coder")
 ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
 ENV_HOME = os.path.join("/home", ENV_USER)
@@ -151,6 +168,9 @@ os.environ['HASHED_PASSWORD'] = hashed_password
 
 
 change_pass(ENV_USER, "password", ENV_WORKSPACE_AUTH_PASSWORD)
+change_user_shell(ENV_USER, shell="/usr/bin/zsh")
+user_exists, user_record = check_user_exists(ENV_USER)
+log.info(user_record)
 
 ### Write config file
 #config_path = os.path.join(config_dir, f"{application}.json")

@@ -48,6 +48,7 @@ RUN \
 ### Install Caddy
 RUN echo "deb [trusted=yes] https://apt.fury.io/caddy/ /" | sudo tee -a /etc/apt/sources.list.d/caddy-fury.list
 RUN apt-get update && apt-get install -y \
+    libnss3-tools \
     caddy \
     # Fix permissions
     && fix-permissions.sh $HOME \

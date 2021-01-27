@@ -49,9 +49,6 @@ RUN \
         libgdbm-dev \
         libncurses5-dev \
         libncursesw5-dev \
-        # Shell packages
-        zsh \
-        csh \
         # Editors
         nano \
         emacs \
@@ -261,7 +258,9 @@ ENV PATH="/usr/local/openresty/nginx/sbin:$PATH"
 RUN \
     echo "**** installing xcaddy builder ****" \
     && apt-get update \
-    && apt-get install -y git \
+    && apt-get install -y --no-install-recommends \
+        git \
+        libnss3-tools \
     && go get -u github.com/caddyserver/xcaddy/cmd/xcaddy \
     # Cleanup
     && clean-layer.sh
@@ -358,6 +357,7 @@ RUN \
     mkdir -p "$PIPX_HOME" "$PIPX_BIN_DIR" && chmod -R 777 "$PIPX_HOME" \
     && pip3 install \
         pipx \
+        pip-api \
         python-crontab \
         pyyaml \
         typing \
@@ -369,10 +369,11 @@ RUN \
     && clean-layer.sh
 
 ### Install pipx packages
-#RUN \
-#    pipx install <package> \
-#    # Cleanup
-#    && clean-layer.sh
+RUN \
+    pipx install \
+        httpie --force \
+    # Cleanup
+    && clean-layer.sh
 
 ### Install latest supervisor for process supervision
 RUN \

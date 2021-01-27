@@ -4,7 +4,7 @@
 # - this is a placeholder
 
 """
-Configure vscode service
+Configure custom app service
 """
 
 import os
@@ -17,7 +17,7 @@ import logging
 from pathlib      import Path
 from urllib.parse import quote, urljoin
 from copy         import copy
-from subprocess   import run
+from subprocess   import run, call
 
 def clean_url(base_url):
     # set base url
@@ -58,20 +58,21 @@ ENV_CADDY_HTTPS_ENABLE = os.getenv("HTTPS_ENABLE", "true")
 ENV_CADDY_HTTPS_PORT = os.getenv("HTTPS_PORT", "443")
 ENV_CADDY_AUTO_HTTPS = os.getenv("AUTO_HTTPS", "true")
 ENV_CADDY_WORKSPACE_SSL_ENABLED = os.getenv("WORKSPACE_SSL_ENABLED", "false")
-ENV_FB_PORT = os.getenv("FB_PORT", "8055")
-ENV_FB_BASE_URL = os.getenv("FB_BASE_URL", "/data")
-ENV_FB_ROOT_DIR = os.getenv("FB_ROOT_DIR", "/workspace")
-ENV_VSCODE_BIND_ADDR = os.getenv("VSCODE_BIND_ADDR", "0.0.0.0:8300")
-ENV_VSCODE_BASE_URL = os.getenv("VSCODE_BASE_URL", "/code")
+ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
+ENV_APP_USER =  os.getenv("APP_USER", "admin")
+ENV_APP_PASSWORD =  os.getenv("APP_PASSWORD", "password")
+ENV_APP_ROOT_DIR = os.getenv("APP_ROOT_DIR", "/apps/app")
+ENV_APP_BIND_ADDR = os.getenv("APP_BIND_ADDR", "0.0.0.0:8080")
+ENV_APP_BASE_URL = os.getenv("VSCODE_BASE_URL", "/app")
 
 ### Clean up envs
-application = "vscode"
+application = "app"
 proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
 host_fqdn = ENV_HOSTNAME
 host_port = ENV_CADDY_VIRTUAL_PORT
 host_bind_ip = "0.0.0.0"
 host_proto = ENV_CADDY_VIRTUAL_PROTO
-host_base_url = clean_url(ENV_VIRTUAL_BASE_URL)
+host_base_url = clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
 auto_https = True if ENV_CADDY_AUTO_HTTPS == "true" else False
 enable_gzip = True if ENV_CADDY_PROXY_ENCODINGS_GZIP == "true" else False
 enable_zstd = True if ENV_CADDY_PROXY_ENCODINGS_ZSTD == "true" else False
@@ -89,13 +90,20 @@ if not os.path.exists(config_dir): os.mkdir(config_dir)
 if not os.path.exists(storage): os.mkdir(storage)
 
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
+apps_dir = os.path.normpath(ENV_APPS_PATH)
 data_dir = os.path.normpath(ENV_DATA_PATH)
+app_dir = os.path.normpath(ENV_APP_ROOT_DIR)
+
+if not os.path.exists(app_dir): 
+    os.makedirs(app_dir)
+    log.info(f"fixing permissions for '{ENV_USER}' on '{app_dir}'")
+    run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', apps_dir])
 
 ### Generate password hash
-password = ENV_WORKSPACE_AUTH_PASSWORD.encode()
+password = ENV_APP_PASSWORD.encode()
 salt = bcrypt.gensalt()
 hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
-log.info(f"{application} password: '{ENV_PASSWORD}'")
+log.info(f"{application} password: '{ENV_APP_PASSWORD}'")
 log.info(f"{application} hashed password: '{hashed_password}'")
 os.environ['HASHED_PASSWORD'] = hashed_password
 
@@ -114,9 +122,9 @@ domains[host_fqdn] = ""
 application_settings = {
     "name": application,
     "host": "localhost",
-    "port": ENV_VSCODE_BIND_ADDR.split(":",1)[1],
+    "port": ENV_APP_BIND_ADDR.split(":",1)[1],
     "proto": "http",
-    "base_url": clean_url(ENV_VSCODE_BASE_URL),
+    "base_url": clean_url(ENV_APP_BASE_URL),
     "enable_gzip": True,
     "enable_gzip": True,
     "enable_templates": True,
@@ -129,6 +137,8 @@ config_file = {
     "apps": {}
 }
 
+#def get_pip_
+
 ### Write config file
 config_path = os.path.join(config_dir, f"{application}.json")
 config_json = json.dumps(config_file, indent = 4)
@@ -137,4 +147,11 @@ with open(config_path, "w") as f:
     f.write(config_json)
 
 log.info(f"{application} config:")
-log.info(subprocess.run(["cat", config_path]))
+log.info(call(["cat", config_path]))
+
+### Create symlink to workspace
+log.info(workspace_dir)
+link_path = os.path.join(workspace_dir, os.path.basename(app_dir))
+if not os.path.exists(link_path):
+    log.info(f"symlinking '{app_dir}'' to '{link_path}'")
+    os.symlink(app_dir, link_path)

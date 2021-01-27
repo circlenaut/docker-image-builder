@@ -14,7 +14,7 @@ import logging
 from pathlib      import Path
 from urllib.parse import quote, urljoin
 from copy         import copy
-from subprocess   import run
+from subprocess   import run, call
 
 def clean_url(base_url):
     # set base url
@@ -38,6 +38,7 @@ ENV_USER = os.getenv("SUDO_USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
+ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
 ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
 ENV_PROXY_BASE_URL = os.getenv("PROXY_BASE_URL", "/")
 ENV_CADDY_VIRTUAL_PORT = os.getenv("VIRTUAL_PORT", "80")
@@ -60,6 +61,9 @@ ENV_FB_BASE_URL = os.getenv("FB_BASE_URL", "/data")
 ENV_FB_ROOT_DIR = os.getenv("FB_ROOT_DIR", "/workspace")
 ENV_VSCODE_BIND_ADDR = os.getenv("VSCODE_BIND_ADDR", "0.0.0.0:8300")
 ENV_VSCODE_BASE_URL = os.getenv("VSCODE_BASE_URL", "/code")
+ENV_APP_PORT = os.getenv("APP_PORT", "8080")
+ENV_APP_BASE_URL = os.getenv("APP_BASE_URL", "/app")
+ENV_APP_ROOT_DIR = os.getenv("APP_ROOT_DIR", "/apps/app")
 
 ### Clean up envs
 application = "caddy"
@@ -86,7 +90,9 @@ if not os.path.exists(config_dir): os.mkdir(config_dir)
 if not os.path.exists(storage): os.mkdir(storage)
 
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
+apps_dir = os.path.normpath(ENV_APPS_PATH)
 data_dir = os.path.normpath(ENV_DATA_PATH)
+app_dir = os.path.normpath(ENV_APP_ROOT_DIR)
 
 letsencrypt_staging = "https://acme-staging-v02.api.letsencrypt.org/directory"
 letsencrypt_production = "https://acme-v02.api.letsencrypt.org/directory"
@@ -126,8 +132,19 @@ filebrowser_settings = {
     "enable_templates": True,
 }
 
+app_settings = {
+    "name": "app",
+    "host": "localhost",
+    "port": ENV_APP_PORT,
+    "proto": "http",
+    "base_url": clean_url(ENV_APP_BASE_URL),
+    "enable_gzip": True,
+    "enable_gzip": True,
+    "enable_templates": True,
+}
+
 ### Create sub-config templates
-service_settings = [vscode_settings, filebrowser_settings]
+service_settings = [vscode_settings, filebrowser_settings, app_settings]
 
 subroutes = list()
 for service in service_settings:
@@ -310,4 +327,4 @@ log.info(f"setting permissions on '{config_dir}' to '{ENV_USER}'")
 run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', config_dir])
 
 log.info(f"{application} config: '{config_path}'")
-log.info(run(["cat", config_path]))
+log.info(call(["cat", config_path]))
