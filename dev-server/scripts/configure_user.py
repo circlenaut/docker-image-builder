@@ -18,24 +18,33 @@ import requests
 from urllib.parse import urlparse
 from subprocess import run, call, Popen, PIPE
 from users_mod  import PwdFile
+from pathlib import Path
 import functions as func
 
-def check_user_exists(username):
-     exists = "no"
+def check_user(username):
+     user_exists = False
      record = dict()
+     home = os.path.join("/home", username)
      user_records = PwdFile().toJSON().get("pwdRecords")
+
+     if os.path.exists(home):
+          home_exists = True
+     else:
+          home_exists = False
 
      for user in user_records:
           if user.get("userName") == username:
                record = json.dumps(user, indent = 4)
-               exists = "yes"
+               user_exists = True
                break
           else:
-               exists = "no"
-     return exists, record
+               user_exists = False
+
+     return user_exists, home_exists, record
 
 def create_user(config):
      username = config.get("name")
+     home = config.get("dirs").get("home").get("path")
      uid = config.get("uid")
      gid = config.get("gid")
      shell = config.get("shell")
@@ -56,15 +65,25 @@ def create_user(config):
           log.info("group creation: error")
           return_codes.append(return_code)
 
-     log.info(f"creating user: '{username}'")
-     cmd = ['useradd', \
+     if os.path.exists(home):
+          log.info(f"creating user without home: '{username}'")
+          cmd = ['useradd', \
+               '--uid', uid, \
+               '--gid', gid, \
+               '--shell', shell, \
+               username
+               ]
+          return_code = call(cmd)
+     else:
+          log.info(f"creating user with home: '{username}'")
+          cmd = ['useradd', \
           '--uid', uid, \
           '--gid', gid, \
           '--create-home', \
           '--shell', shell, \
           username
           ]
-     return_code = call(cmd)
+          return_code = call(cmd)
 
      if return_code == 0:
           log.info("user creation: success")
@@ -133,13 +152,33 @@ def set_user_paths(config):
      for name, attr in config.get("dirs").items():
           dir_path = attr.get("path")
           dir_mode = attr.get("mode")
-          if not os.path.exists(dir_path):
+          if os.path.exists(dir_path):
+               log.info(f"path exists: '{dir_path}'")
+               if Path(dir_path).owner() == username:
+                    log.info(f"path '{dir_path}', already owned by '{username}'")
+               else:
+                    # Set ownership of top path
+                    log.info(f"setting ownership of '{dir_path}', to '{username}'")
+                    func.chown(dir_path, username)
+                    log.info(f"setting mode of '{dir_path}', to '{dir_mode}'")
+                    func.chmod(dir_path, dir_mode)
+                    # Go one level down, docker sets mounted dir ownership to root
+                    for d in os.listdir(dir_path):
+                         p = os.path.join(dir_path, d)
+                         if Path(p).owner() == username:
+                              log.info(f"path '{p}', already owned by '{username}'")
+                         else:
+                              log.info(f"setting ownership of '{p}', to '{username}'")
+                              func.recursive_chown(p, username)
+                              log.info(f"setting mode of '{p}', to '{dir_mode}'")
+                              func.recursive_chmod(p, dir_mode)
+          else:
                log.info(f"creating directory: '{dir_path}'")
                os.makedirs(dir_path)
-          log.info(f"setting ownership of '{dir_path}', to '{username}'")
-          func.recursive_chown(dir_path, username)
-          log.info(f"setting mode of '{dir_path}', to '{dir_mode}'")
-          func.recursive_chmod(dir_path, dir_mode)
+               log.info(f"setting ownership of '{dir_path}', to '{username}'")
+               func.recursive_chown(dir_path, username)
+               log.info(f"setting mode of '{dir_path}', to '{dir_mode}'")
+               func.recursive_chmod(dir_path, dir_mode)
 
 def run_pass_change(username, hash):
      log.info(f"new password hash: '{hash}'")
@@ -181,8 +220,8 @@ def check_old_pass(username, password):
           return 'error'
 
 def change_pass(username, old_password, new_password):
-     user_exists, record = check_user_exists(username)
-     if user_exists == 'yes':
+     user_exists, home_exists, record = check_user(username)
+     if user_exists:
           current_password_hash = spwd.getspnam(username).sp_pwdp
           log.info(f"current password hash: '{current_password_hash}'")
           log.info(f"new password: '{new_password}'")
@@ -207,15 +246,16 @@ def change_pass(username, old_password, new_password):
                return 126
           elif old_pass == 'error':
                return 126
-     elif user_exists == 'no':
+     elif not user_exists:
           log.info(f"user: '{username}' does not exist")
           return 1
      else:
           log.info("unknown error")
 
 def change_user_shell(username, shell):
-     user_exists, record = check_user_exists(username)
-     if user_exists == 'yes':
+     user_exists, home_exists, record = check_user(username)
+
+     if user_exists:
           log.info(f"'{username}' shell changed to: '{shell}'")
           cmd = ['usermod', '--shell', shell, username]
           return_code = call(cmd)
@@ -226,7 +266,7 @@ def change_user_shell(username, shell):
           else:
                log.info('password change: error')
                return 'error'
-     elif user_exists == 'no':
+     elif not user_exists:
           log.info(f"user: '{username}' does not exist")
           return 1
      else:
@@ -288,6 +328,116 @@ def init_shell(config, environment):
      #user_env['PATH'] += os.pathsep + os.path.join(conda_root, "bin")
 
      return user_env
+
+def setup_user(config, environment):
+     system_env = environment
+
+     log.info("Creating user: '{name}'".format(name=config.get("name")))
+     create_user(config)
+     
+     setup_ssh(config.get("name"), system_env)
+     change_pass(config.get("name"), "password", config.get("password"))
+     change_user_shell(config.get("name"), config.get("shell"))
+     
+     user_env = init_shell(config, system_env)
+     
+     set_user_paths(config)
+     user_exists, home_exists, user_record = check_user(config.get("name"))
+     log.info(user_record)
+
+     # configure system services
+     services = ["ssh", "cron"]
+     for serv in services:
+          log.info(f"configuring system service: '{serv}'")
+          run(
+               ['python3', f"/scripts/configure_{serv}.py"], 
+               env=user_env
+          )
+
+     # configure user settings
+     services = ["zsh"]
+     for serv in services:
+          log.info(f"configuring user service: '{serv}'")
+          run(
+               ['sudo', '-i', '-u', config.get("name"), 'python3', f"/scripts/configure_{serv}.py"], 
+               env=user_env
+          )
+
+     startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
+     if os.path.exists(startup_custom_script):
+          log.info("Run on_startup.sh user script from workspace folder")
+          # run startup script from workspace folder - can be used to run installation routines on workspace updates
+          run(
+               ['/bin/bash', startup_custom_script], 
+               env=user_env
+          )
+
+     ### Create conda environments
+     #@TODO: fix conda PATH to avoid using conda_exe trick
+     conda_exe = os.path.join(home, ".conda", 'condabin', 'conda')
+     run(
+          ['sudo', '-i', '-u', config.get("name"), conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py'], 
+          env=user_env
+     )
+
+     return user_env
+
+def run_user_services_config(username, environment):
+     # configure user services and options
+     services = {
+          "caddy": {
+               "config": {}
+          }, 
+          "vscode": {
+               "config": {
+                    "extensions": [
+                         'ms-python.python',
+                         'almenon.arepl',
+                         'batisteo.vscode-django',
+                         'bierner.color-info',
+                         'bierner.markdown-footnotes',
+                         'bierner.markdown-mermaid',
+                         'bierner.markdown-preview-github-styles',
+                         'CoenraadS.bracket-pair-colorizer-2',
+                         'DavidAnson.vscode-markdownlint',
+                         'donjayamanne.githistory',
+                         'donjayamanne.python-extension-pack',
+                         'eamodio.gitlens',
+                         'hbenl.vscode-test-explorer',
+                         'henriiik.docker-linter',
+                         'kamikillerto.vscode-colorize',
+                         'kisstkondoros.vscode-gutter-preview',
+                         'littlefoxteam.vscode-python-test-adapter',
+                         'magicstack.MagicPython',
+                         'ms-azuretools.vscode-docker',
+                         'ms-toolsai.jupyter',
+                         'naumovs.color-highlight',
+                         'shd101wyy.markdown-preview-enhanced',
+                         'streetsidesoftware.code-spell-checker',
+                         'tht13.html-preview-vscode',
+                         'tht13.python',
+                         'tushortz.python-extended-snippets',
+                         'wholroyd.jinja',
+                         'yzhang.markdown-all-in-one',
+                    ]
+               }
+          }, 
+          "filebrowser": {
+               "config": {}
+          }, 
+          "app": {
+               "config": {}
+          }
+     } 
+
+     for serv, opts in services.items():
+          log.info(f"configuring user service: '{serv}'")
+          # format dictionary arguments as json
+          load = json.dumps(opts)
+          run(
+               ['sudo', '-i', '-u', username, 'python3', f'/scripts/configure_{serv}.py', '--opts', load], 
+               env=environment
+          )
 
 ### Enable logging
 logging.basicConfig(
@@ -378,64 +528,62 @@ for u in USERS.split(" "):
 for u, config in users.items():
      name = config.get("name")
      workspace_auth_password = config.get("password")
-     user_exists, user_record = check_user_exists(name)
-     if user_exists == 'no':
-          log.info(f"Creating user: '{name}'")
-          create_user(config)
-          setup_ssh(name, system_env)
-          change_pass(name, "password", config.get("password"))
-          change_user_shell(name, config.get("shell"))
-          
-          user_env = init_shell(config, system_env)
-          
-          set_user_paths(config)
-          user_exists, user_record = check_user_exists(name)
-          log.info(user_record)
+     user_exists, home_exists, user_record = check_user(name)
 
-          # configure system services
-          services = ["ssh"]
-          for serv in services:
-               log.info(f"configuring system service: '{serv}'")
-               run(
-                    ['python3', f"/scripts/configure_{serv}.py"], 
-                    env=user_env
-               )
-
-          # configure user services
-          services = ["zsh", "caddy", "vscode", "filebrowser", "app"]
-          for serv in services:
-               log.info(f"configuring user service: '{serv}'")
-               run(
-                    ['sudo', '-i', '-u', name, 'python3', f"/scripts/configure_{serv}.py"], 
-                    env=user_env
-               )
-
-          startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
-          if os.path.exists(startup_custom_script):
-               log.info("Run on_startup.sh user script from workspace folder")
-               # run startup script from workspace folder - can be used to run installation routines on workspace updates
-               run(
-                    ['/bin/bash', startup_custom_script], 
-                    env=user_env
-               )
-
-          ### Create conda environments
-          #@TODO: fix conda PATH to avoid using conda_exe trick
-          conda_exe = os.path.join(home, ".conda", 'condabin', 'conda')
-          run(
-               ['sudo', '-i', '-u', name, conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py'], 
-               env=user_env
-          )
+     if not user_exists and not home_exists:
+          log.info(f"User and home does not exist, creating: '{name}'")
+          user_env = setup_user(config, system_env)
+          run_user_services_config(name, user_env)
 
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=False)
 
-     elif user_exists == 'yes':
+     elif user_exists and not home_exists:
+          # create missing user's home
           user_env = os.environ.copy()
-          log.info(f"User exists '{name}'")
+          log.info(f"User exists '{name}' but home is missing")
+          
+          #@TODO: write function similar to setup_user that copies existing 
+          # shadows info and init's shell
 
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=True)
+
+     elif not user_exists and home_exists:
+          user_env = os.environ.copy()
+          home = os.path.join("/home", name)
+          log.info(f"User does not exist but a home directory exists, creating: '{name}'")
+
+          #@TODO: Impliment below when there's a way to backup/check against previous /etc/shadows file
+          # move old home to backup
+          #existing_home = os.path.join("/home", name)
+          #backup_home = os.path.join("/home", f"{name}_previous")
+          #shutil.move(existing_home, backup_home) 
+
+          # Create user
+          create_user(config)
+          # Set password
+          change_pass(config.get("name"), "password", config.get("password"))
+          # fix permissions
+          set_user_paths(config)
+          # Configure services
+          run_user_services_config(name, user_env)
+          ssh_dir = os.path.join(config.get("dirs").get("home").get("path"), ".ssh")
+          log.info("setting correct permissions on '.ssh'")
+          func.recursive_chmod(ssh_dir, "600")
+
+          # Set enviornments
+          for env, value in user_env.items():
+               func.set_env_variable(env, value, ignore_if_set=True)    
+
+     elif user_exists and home_exists:
+          # All's peachy for new user
+          # move old home to backup and create new user
+          user_env = os.environ.copy()
+          log.info(f"User and home exists '{name}'")
+
+          for env, value in user_env.items():
+               func.set_env_variable(env, value, ignore_if_set=True)                    
           
      else:
           log.info(f"User exists 'error'")

@@ -130,6 +130,11 @@ system_env = os.environ.copy()
 #log.info("Docker Environments:")
 #log.info(run(['env'], env=docker_env))
 
+### Run user config restoration
+action = "restore"
+log.info(f"backup script: '{action}'")
+run(['sudo', '--preserve-env', 'python3', '/scripts/backup_restore_config.py', action])
+
 log.info("Workspace Environment")
 workspace_env = func.merge_two_dicts(system_env, docker_env)
 log.info(run(['env'], env=workspace_env))

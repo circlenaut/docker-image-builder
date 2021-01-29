@@ -12,15 +12,10 @@ import sys
 import json
 import bcrypt
 import logging
+import argparse
 from urllib.parse import quote, urljoin
 from subprocess   import run, call
-
-def clean_url(base_url):
-    # set base url
-    url = base_url.rstrip("/").strip()
-    # always quote base url
-    url = quote(base_url, safe="/%")
-    return url
+import functions as func
 
 ### Enable logging
 logging.basicConfig(
@@ -29,6 +24,14 @@ logging.basicConfig(
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.info("Unknown arguments " + str(unknown))
 
 ### Read system envs
 ENV_USER = os.getenv("WORKSPACE_USER", "coder")
@@ -49,9 +52,9 @@ ENV_APP_BASE_URL = os.getenv("VSCODE_BASE_URL", "/app")
 
 ### Clean up envs
 application = "app"
-proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
-host_base_url = clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
-app_base_url = clean_url(ENV_APP_BASE_URL )
+proxy_base_url = func.clean_url(ENV_PROXY_BASE_URL)
+host_base_url = func.clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
+app_base_url = func.clean_url(ENV_APP_BASE_URL )
 
 ### Set final base url
 system_base_url = urljoin(host_base_url, proxy_base_url)
@@ -103,8 +106,7 @@ log.info(f"{application} config:")
 log.info(call(["cat", config_path]))
 
 ### Create symlink to workspace
-log.info(workspace_dir)
 link_path = os.path.join(workspace_dir, os.path.basename(app_dir))
-if not os.path.exists(link_path):
+if os.path.exists(app_dir) and not os.path.exists(link_path):
     log.info(f"symlinking '{app_dir}'' to '{link_path}'")
     os.symlink(app_dir, link_path)

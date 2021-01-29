@@ -1,8 +1,5 @@
 #!/usr/bin/python
 
-#@TODO
-# - this is a placeholder
-
 """
 Configure vscode service
 """
@@ -12,15 +9,11 @@ import sys
 import json
 import bcrypt
 import logging
+import argparse
+import json
 from urllib.parse import quote, urljoin
 from subprocess   import run, PIPE
-
-def clean_url(base_url):
-    # set base url
-    url = base_url.rstrip("/").strip()
-    # always quote base url
-    url = quote(base_url, safe="/%")
-    return url
+import functions as func
 
 def get_installed_extensions():
     extensions = list()
@@ -47,6 +40,17 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.info("Unknown arguments " + str(unknown))
+
+# load arguments
+cli_args = args.opts
+
 ### Read system envs
 ENV_USER = os.getenv("WORKSPACE_USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
@@ -62,9 +66,9 @@ ENV_VSCODE_BASE_URL = os.getenv("VSCODE_BASE_URL", "/code")
 
 ### Clean up envs
 application = "vscode"
-proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
-host_base_url = clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
-vscode_base_url = clean_url(ENV_VSCODE_BASE_URL)
+proxy_base_url = func.clean_url(ENV_PROXY_BASE_URL)
+host_base_url = func.clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
+vscode_base_url = func.clean_url(ENV_VSCODE_BASE_URL)
 
 ### Set final base url
 system_base_url = urljoin(host_base_url, proxy_base_url)
@@ -92,7 +96,7 @@ application_settings = {
     "host": "localhost",
     "port": ENV_VSCODE_BIND_ADDR.split(":",1)[1],
     "proto": "http",
-    "base_url": clean_url(ENV_VSCODE_BASE_URL),
+    "base_url": func.clean_url(ENV_VSCODE_BASE_URL),
     "enable_gzip": True,
     "enable_gzip": True,
     "enable_templates": True,
@@ -116,39 +120,6 @@ config_file = {
     "workbench.colorTheme": theme
 }
 
-### Install VScode extensions
-extensions = [
-    'ms-python.python',
-    'almenon.arepl',
-    'batisteo.vscode-django',
-    'bierner.color-info',
-    'bierner.markdown-footnotes',
-    'bierner.markdown-mermaid',
-    'bierner.markdown-preview-github-styles',
-    'CoenraadS.bracket-pair-colorizer-2',
-    'DavidAnson.vscode-markdownlint',
-    'donjayamanne.githistory',
-    'donjayamanne.python-extension-pack',
-    'eamodio.gitlens',
-    'hbenl.vscode-test-explorer',
-    'henriiik.docker-linter',
-    'kamikillerto.vscode-colorize',
-    'kisstkondoros.vscode-gutter-preview',
-    'littlefoxteam.vscode-python-test-adapter',
-    'magicstack.MagicPython',
-    'ms-azuretools.vscode-docker',
-    'ms-python.python',
-    'ms-toolsai.jupyter',
-    'naumovs.color-highlight',
-    'shd101wyy.markdown-preview-enhanced',
-    'streetsidesoftware.code-spell-checker',
-    'tht13.html-preview-vscode',
-    'tht13.python',
-    'tushortz.python-extended-snippets',
-    'wholroyd.jinja',
-    'yzhang.markdown-all-in-one',
-]
-
 # for testing
 run(
     'code-server --install-extension ms-python.python',
@@ -163,7 +134,8 @@ run(
 ### Install new vscode extensions
 installed_extensions = get_installed_extensions()
 
-for e in extensions:
+### Install VScode extensions
+for e in cli_args.get("config").get("extensions"):
     if e in installed_extensions:
         log.info(f"vscode extension exists: '{e}'")
         continue

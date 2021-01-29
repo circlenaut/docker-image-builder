@@ -26,16 +26,11 @@ supervisor_env = os.environ.copy()
 supervisor_env['USER'] = supervisor_env.get("WORKSPACE_USER")
 supervisor_env['HOME'] = os.path.join("/home", supervisor_env.get("WORKSPACE_USER"))
 
-### Run user config restoration
-action = "restore"
-log.info(f"backup script: '{action}'")
-run(['sudo', '--preserve-env', 'python3', '/scripts/backup_restore_config.py', action])
-
 ### Start supervisor
 log.info("Start supervisor")
 # Print environment
-log.info("Environment:")
-run(['env'], env=supervisor_env)
+#log.info("Environment:")
+#run(['env'], env=supervisor_env)
 
 # Execute
 run(['supervisord', '-n', '-c', '/etc/supervisor/supervisord.conf'])

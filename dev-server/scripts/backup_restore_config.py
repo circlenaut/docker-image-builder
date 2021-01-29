@@ -58,6 +58,7 @@ elif args.mode == "backup":
     
     log.info("Starting configuration backup.")
     backup_selection = "--include='/.config' \
+                        --include='/.oh-my-zsh' \
                         --include='/.config/Code/' --include='/.config/Code/User/' --include='/.config/Code/User/settings.json' \
                         --include='/.gitconfig' \
                         --include='/filebrowser.db' \

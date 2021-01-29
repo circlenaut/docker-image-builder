@@ -9,15 +9,10 @@ import sys
 import json
 import bcrypt
 import logging
+import argparse
 from urllib.parse import quote, urljoin
 from subprocess   import run
-
-def clean_url(base_url):
-    # set base url
-    url = base_url.rstrip("/").strip()
-    # always quote base url
-    url = quote(base_url, safe="/%")
-    return url
+import functions as func
 
 ### Enable logging
 logging.basicConfig(
@@ -26,6 +21,14 @@ logging.basicConfig(
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.info("Unknown arguments " + str(unknown))
 
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
@@ -45,9 +48,9 @@ ENV_FB_ROOT_DIR = os.getenv("FB_ROOT_DIR", "/workspace")
 ### Clean up envs
 application = "filebrowser"
 fb_port = int(ENV_FB_PORT)
-proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
-host_base_url = clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
-fb_base_url = clean_url(ENV_FB_BASE_URL)
+proxy_base_url = func.clean_url(ENV_PROXY_BASE_URL)
+host_base_url = func.clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
+fb_base_url = func.clean_url(ENV_FB_BASE_URL)
 
 ### Set final base url
 system_base_url = urljoin(host_base_url, proxy_base_url)

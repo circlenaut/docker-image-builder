@@ -9,15 +9,10 @@ import sys
 import json
 import bcrypt
 import logging
+import argparse
 from urllib.parse import quote, urljoin
 from subprocess   import run, call
-
-def clean_url(base_url):
-    # set base url
-    url = base_url.rstrip("/").strip()
-    # always quote base url
-    url = quote(base_url, safe="/%")
-    return url
+import functions as func
 
 ### Enable logging
 logging.basicConfig(
@@ -26,6 +21,14 @@ logging.basicConfig(
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.info("Unknown arguments " + str(unknown))
 
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
@@ -63,12 +66,12 @@ ENV_APP_ROOT_DIR = os.getenv("APP_ROOT_DIR", "/apps/app")
 
 ### Clean up envs
 application = "caddy"
-proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
+proxy_base_url = func.clean_url(ENV_PROXY_BASE_URL)
 host_fqdn = ENV_CADDY_VIRTUAL_HOST # @TODO: Not reading from env
 host_port = ENV_CADDY_VIRTUAL_PORT
 host_ip = "0.0.0.0"
 host_proto = ENV_CADDY_VIRTUAL_PROTO
-host_base_url = clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
+host_base_url = func.clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
 auto_https = True if ENV_CADDY_AUTO_HTTPS == "true" else False
 enable_gzip = True if ENV_CADDY_PROXY_ENCODINGS_GZIP == "true" else False
 enable_zstd = True if ENV_CADDY_PROXY_ENCODINGS_ZSTD == "true" else False
@@ -109,7 +112,7 @@ vscode_settings = {
     "host": "localhost",
     "port": ENV_VSCODE_BIND_ADDR.split(":",1)[1],
     "proto": "http",
-    "base_url": clean_url(ENV_VSCODE_BASE_URL),
+    "base_url": func.clean_url(ENV_VSCODE_BASE_URL),
     "enable_gzip": True,
     "enable_gzip": True,
     "enable_templates": True,
@@ -120,7 +123,7 @@ filebrowser_settings = {
     "host": "localhost",
     "port": ENV_FB_PORT,
     "proto": "http",
-    "base_url": clean_url(ENV_FB_BASE_URL),
+    "base_url": func.clean_url(ENV_FB_BASE_URL),
     "enable_gzip": True,
     "enable_gzip": True,
     "enable_templates": True,
@@ -131,7 +134,7 @@ app_settings = {
     "host": "localhost",
     "port": ENV_APP_PORT,
     "proto": "http",
-    "base_url": clean_url(ENV_APP_BASE_URL),
+    "base_url": func.clean_url(ENV_APP_BASE_URL),
     "enable_gzip": True,
     "enable_gzip": True,
     "enable_templates": True,

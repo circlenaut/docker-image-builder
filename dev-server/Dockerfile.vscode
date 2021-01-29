@@ -78,6 +78,7 @@ COPY scripts/functions.py $SCRIPTS_PATH
 COPY scripts/run_workspace.py $SCRIPTS_PATH
 COPY scripts/configure_user.py $SCRIPTS_PATH
 COPY scripts/configure_ssh.py $SCRIPTS_PATH
+COPY scripts/configure_cron.py $SCRIPTS_PATH
 COPY scripts/backup_restore_config.py $SCRIPTS_PATH
 # copy supervisor configs
 COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
