@@ -8,16 +8,12 @@ Configure vscode service
 """
 
 import os
-import shutil
 import sys
 import json
-import docker
 import bcrypt
 import logging
-from pathlib      import Path
 from urllib.parse import quote, urljoin
-from copy         import copy
-from subprocess   import run
+from subprocess   import run, PIPE
 
 def clean_url(base_url):
     # set base url
@@ -25,6 +21,23 @@ def clean_url(base_url):
     # always quote base url
     url = quote(base_url, safe="/%")
     return url
+
+def get_installed_extensions():
+    extensions = list()
+    cmd = ['code-server', '--list-extensions']
+
+    result = run(cmd, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+
+    output = result.stdout
+    error = result.stderr
+    return_code = result.returncode
+
+    if return_code == 0:
+        log.info('list extension command: success')
+        extensions = output.split("\n")
+    else:
+        log.info('list extension command: error')
+    return extensions
 
 ### Enable logging
 logging.basicConfig(
@@ -35,58 +48,32 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 ### Read system envs
-ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
-ENV_USER = os.getenv("SUDO_USER", "coder")
+ENV_USER = os.getenv("WORKSPACE_USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
-ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
 ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
+ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
 ENV_PROXY_BASE_URL = os.getenv("PROXY_BASE_URL", "/")
-ENV_CADDY_VIRTUAL_PORT = os.getenv("VIRTUAL_PORT", "80")
-ENV_CADDY_VIRTUAL_HOST = os.getenv("VIRTUAL_HOST", "")
-ENV_CADDY_VIRTUAL_BIND_NET = os.getenv("VIRTUAL_BIND_NET", "proxy")
-ENV_CADDY_VIRTUAL_PROTO = os.getenv("VIRTUAL_PROTO", "http")
 ENV_CADDY_VIRTUAL_BASE_URL = os.getenv("VIRTUAL_BASE_URL", "/")
-ENV_CADDY_PROXY_ENCODINGS_GZIP = os.getenv("PROXY_ENCODINGS_GZIP", "true")
-ENV_CADDY_PROXY_ENCODINGS_ZSTD = os.getenv("PROXY_ENCODINGS_ZSTD", "true")
-ENV_CADDY_PROXY_TEMPLATES = os.getenv("PROXY_TEMPLATES", "true")
-ENV_CADDY_LETSENCRYPT_EMAIL = os.getenv("LETSENCRYPT_EMAIL", "admin@example.com")
-ENV_CADDY_LETSENCRYPT_ENDPOINT = os.getenv("LETSENCRYPT_ENDPOINT", "prod")
-ENV_CADDY_HTTP_PORT = os.getenv("HTTP_PORT", "80")
-ENV_CADDY_HTTPS_ENABLE = os.getenv("HTTPS_ENABLE", "true")
-ENV_CADDY_HTTPS_PORT = os.getenv("HTTPS_PORT", "443")
-ENV_CADDY_AUTO_HTTPS = os.getenv("AUTO_HTTPS", "true")
-ENV_CADDY_WORKSPACE_SSL_ENABLED = os.getenv("WORKSPACE_SSL_ENABLED", "false")
-ENV_FB_PORT = os.getenv("FB_PORT", "8055")
-ENV_FB_BASE_URL = os.getenv("FB_BASE_URL", "/data")
-ENV_FB_ROOT_DIR = os.getenv("FB_ROOT_DIR", "/workspace")
+
 ENV_VSCODE_BIND_ADDR = os.getenv("VSCODE_BIND_ADDR", "0.0.0.0:8300")
 ENV_VSCODE_BASE_URL = os.getenv("VSCODE_BASE_URL", "/code")
 
 ### Clean up envs
 application = "vscode"
 proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
-host_fqdn = ENV_HOSTNAME
-host_port = ENV_CADDY_VIRTUAL_PORT
-host_bind_ip = "0.0.0.0"
-host_proto = ENV_CADDY_VIRTUAL_PROTO
-host_base_url = clean_url(ENV_VIRTUAL_BASE_URL)
-auto_https = True if ENV_CADDY_AUTO_HTTPS == "true" else False
-enable_gzip = True if ENV_CADDY_PROXY_ENCODINGS_GZIP == "true" else False
-enable_zstd = True if ENV_CADDY_PROXY_ENCODINGS_ZSTD == "true" else False
-enable_templates = True if ENV_CADDY_PROXY_TEMPLATES == "true" else False
+host_base_url = clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
+vscode_base_url = clean_url(ENV_VSCODE_BASE_URL)
 
-#@TODO: add this later to enable proxy's base url
-#clients = docker.from_env()
-#host_container = clients.containers.get(ENV_HOSTNAME)
-#host = host_container.name
+### Set final base url
+system_base_url = urljoin(host_base_url, proxy_base_url)
+full_base_url = urljoin(system_base_url, vscode_base_url)
+log.info(f"{application} base URL: '{full_base_url}'")
 
 ### Set config and data paths
-config_dir = os.path.join("/etc", application)
-storage = os.path.join(config_dir, "storage")
-if not os.path.exists(config_dir): os.mkdir(config_dir)
-if not os.path.exists(storage): os.mkdir(storage)
+config_dir = os.path.join(ENV_HOME, ".config", application, "User")
+if not os.path.exists(config_dir): os.makedirs(config_dir)
 
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
 data_dir = os.path.normpath(ENV_DATA_PATH)
@@ -95,20 +82,9 @@ data_dir = os.path.normpath(ENV_DATA_PATH)
 password = ENV_WORKSPACE_AUTH_PASSWORD.encode()
 salt = bcrypt.gensalt()
 hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
-log.info(f"{application} password: '{ENV_PASSWORD}'")
+log.info(f"{application} password: '{ENV_WORKSPACE_AUTH_PASSWORD}'")
 log.info(f"{application} hashed password: '{hashed_password}'")
 os.environ['HASHED_PASSWORD'] = hashed_password
-
-### Run checks
-if not host_proto in ['http', 'https']:
-    log.info(f"{application}: protocol '{proto}' is not valid! Exiting.")
-    sys.exit()
-
-servers = dict()
-servers["automatic_https"]: auto_https
-servers['default'] = dict()
-domains = dict()
-domains[host_fqdn] = ""
 
 ### Define application settings
 application_settings = {
@@ -123,18 +99,98 @@ application_settings = {
 }
 
 ### Create config template
+theme = "Visual Studio Dark"
+shell = "/usr/bin/zsh"
+python_path = "/opt/conda/bin/python"
+
 config_file = {
-    "admin": {},
-    "logging": {},
-    "apps": {}
+    "extensions.autoUpdate": False,
+    "terminal.integrated.shell.linux": shell,
+    "python.dataScience.useDefaultConfigForJupyter": False,
+    "python.pythonPath": python_path,
+    "files.exclude": {
+        "**/.*": True
+    },
+    "python.jediEnabled": True,
+    "terminal.integrated.inheritEnv": True,
+    "workbench.colorTheme": theme
 }
 
+### Install VScode extensions
+extensions = [
+    'ms-python.python',
+    'almenon.arepl',
+    'batisteo.vscode-django',
+    'bierner.color-info',
+    'bierner.markdown-footnotes',
+    'bierner.markdown-mermaid',
+    'bierner.markdown-preview-github-styles',
+    'CoenraadS.bracket-pair-colorizer-2',
+    'DavidAnson.vscode-markdownlint',
+    'donjayamanne.githistory',
+    'donjayamanne.python-extension-pack',
+    'eamodio.gitlens',
+    'hbenl.vscode-test-explorer',
+    'henriiik.docker-linter',
+    'kamikillerto.vscode-colorize',
+    'kisstkondoros.vscode-gutter-preview',
+    'littlefoxteam.vscode-python-test-adapter',
+    'magicstack.MagicPython',
+    'ms-azuretools.vscode-docker',
+    'ms-python.python',
+    'ms-toolsai.jupyter',
+    'naumovs.color-highlight',
+    'shd101wyy.markdown-preview-enhanced',
+    'streetsidesoftware.code-spell-checker',
+    'tht13.html-preview-vscode',
+    'tht13.python',
+    'tushortz.python-extended-snippets',
+    'wholroyd.jinja',
+    'yzhang.markdown-all-in-one',
+]
+
+# for testing
+run(
+    'code-server --install-extension ms-python.python',
+    shell=True,
+)
+
+run(
+    'code-server --install-extension almenon.arepl',
+    shell=True,
+)
+
+### Install new vscode extensions
+installed_extensions = get_installed_extensions()
+
+for e in extensions:
+    if e in installed_extensions:
+        log.info(f"vscode extension exists: '{e}'")
+        continue
+    else:
+        log.info(f"vscode extension: '{e}'")
+        run(['code-server', '--install-extension', e])
+
+    # Removed: 
+    #--install-extension RandomFractalsInc.vscode-data-preview \
+    #--install-extension searKing.preview-vscode \
+    #--install-extension SimonSiefke.svg-preview \
+    #--install-extension Syler.ignore \
+    #--install-extension VisualStudioExptTeam.vscodeintellicode \
+    #--install-extension xpol.extra-markdown-plugins \
+
+    # Docker commands
+    #COPY --chown=$UNAME:$UNAME files/extensions/RandomFractalsInc.vscode-data-preview-2.2.0.vsix /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix
+    #COPY --chown=$UNAME:$UNAME files/extensions/SimonSiefke.svg-preview-2.8.3.vsix /tmp/SimonSiefke.svg-preview-2.8.3.vsix
+    #! code-server --install-extension /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix || true \
+    #! code-server --install-extension /tmp/SimonSiefke.svg-preview-2.8.3.vsix || true
+
 ### Write config file
-config_path = os.path.join(config_dir, f"{application}.json")
+config_path = os.path.join(config_dir, "settings.json")
 config_json = json.dumps(config_file, indent = 4)
 
 with open(config_path, "w") as f: 
     f.write(config_json)
 
 log.info(f"{application} config:")
-log.info(subprocess.run(["cat", config_path]))
+log.info(run(["cat", config_path]))

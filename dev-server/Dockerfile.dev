@@ -49,6 +49,10 @@ RUN \
         libgdbm-dev \
         libncurses5-dev \
         libncursesw5-dev \
+        # Shells
+        csh \
+        zsh \
+        fish \
         # Editors
         nano \
         emacs \
@@ -77,6 +81,7 @@ RUN \
         bash-completion \
         expect \
         catimg \
+        autojump \
         # Net tools
         net-tools \
         dnsutils \
@@ -97,6 +102,9 @@ RUN \
         # Version control
         subversion \
         jed \
+        git \
+        git-flow \
+        git-extras \
         # Visualization
         graphviz \
         # DB libs
@@ -259,7 +267,6 @@ RUN \
     echo "**** installing xcaddy builder ****" \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        git \
         libnss3-tools \
     && go get -u github.com/caddyserver/xcaddy/cmd/xcaddy \
     # Cleanup
@@ -308,22 +315,22 @@ RUN \
     && fix-permissions.sh $HOME
 
 ### Install and activate Conda
-ENV CONDA_BIN="/opt/conda"
+#ENV CONDA_BIN="/opt/conda"
 
-RUN \
-    cd /tmp \
-    && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-RUN \
-    cd /tmp \
-    && sh Miniconda3* -u -b -p $CONDA_BIN
-RUN \
-    $CONDA_BIN/bin/conda init bash
+#RUN \
+#    cd /tmp \
+#    && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+#RUN \
+#    cd /tmp \
+#    && sh Miniconda3* -u -b -p $CONDA_BIN
+#RUN \
+#    $CONDA_BIN/bin/conda init bash
 
 ### disable conda default base
-RUN \
-    $CONDA_BIN/bin/conda config --set auto_activate_base false \  
-    # Cleanup
-    && clean-layer.sh
+#RUN \
+#    $CONDA_BIN/bin/conda config --set auto_activate_base false \  
+#    # Cleanup
+#    && clean-layer.sh
 
 ### Install pyenv to allow dynamic creation of python versions
 RUN \
@@ -358,6 +365,7 @@ RUN \
     && pip3 install \
         pipx \
         pip-api \
+        psutil \
         python-crontab \
         pyyaml \
         typing \

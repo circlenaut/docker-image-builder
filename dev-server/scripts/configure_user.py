@@ -5,22 +5,24 @@ Configure user
 """
 
 import os
-import shutil
+import pwd
 import sys
+import shutil
+import psutil
 import json
-import docker
 import bcrypt
 import logging
 import crypt
-import codecs
-import typing
 import spwd
-from pathlib    import Path
-from subprocess import run, call
+import requests
+from urllib.parse import urlparse
+from subprocess import run, call, Popen, PIPE
 from users_mod  import PwdFile
+import functions as func
 
 def check_user_exists(username):
-     exists = str()
+     exists = "no"
+     record = dict()
      user_records = PwdFile().toJSON().get("pwdRecords")
 
      for user in user_records:
@@ -31,6 +33,113 @@ def check_user_exists(username):
           else:
                exists = "no"
      return exists, record
+
+def create_user(config):
+     username = config.get("name")
+     uid = config.get("uid")
+     gid = config.get("gid")
+     shell = config.get("shell")
+
+     return_codes = list()
+
+     log.info(f"creating user group: '{username}'")
+     cmd = ['groupadd', \
+          '--gid', gid, \
+          '-o', username
+          ]
+     return_code = call(cmd)
+
+     if return_code == 0:
+          log.info("group creation: success")
+          return_codes.append(return_code)
+     else:
+          log.info("group creation: error")
+          return_codes.append(return_code)
+
+     log.info(f"creating user: '{username}'")
+     cmd = ['useradd', \
+          '--uid', uid, \
+          '--gid', gid, \
+          '--create-home', \
+          '--shell', shell, \
+          username
+          ]
+     return_code = call(cmd)
+
+     if return_code == 0:
+          log.info("user creation: success")
+          return_codes.append(return_code)
+     else:
+          log.info("user creation: error")
+          return_codes.append(return_code)
+
+     log.info(f"adding to sudo: '{username}'")
+     cmd = ['adduser', username, 'sudo']
+     return_code = call(cmd)
+
+     if return_code == 0:
+          log.info(f"'{username}'' added to sudo: success")
+          return_codes.append(return_code)
+     else:
+          log.info(f"'{username}'' added to sudo: error")
+          return_codes.append(return_code)
+
+     ### Create user sudo config
+     sudo_config_path = os.path.join("/etc/sudoers.d", username)
+     sudo_config = f"{username} ALL=(root) NOPASSWD:ALL"
+     
+     log.info(f"adding sudo config: '{sudo_config}' to '{sudo_config_path}'")
+     with open(sudo_config_path, "w") as f: 
+          f.write(sudo_config + "\n")
+
+     log.info(f"fixing sudo config permission: '{sudo_config_path}'")
+     func.chmod(sudo_config_path, "440")
+
+     log.info(f"sudo config file:")
+     log.info(run(["cat", sudo_config_path]))
+     
+def setup_ssh(username, environment):
+     system_env = environment
+     home = os.path.join("/home", username)
+     ssh_config_dir = os.path.join(home, ".ssh")
+     ssh_config = os.path.join(ssh_config_dir, 'config')
+     ssh_env = os.path.join(ssh_config_dir, 'environment')
+
+     if not os.path.exists(ssh_config_dir):
+          log.info(f"creating ssh config directory: '{ssh_config_dir}'")
+          os.mkdir(ssh_config_dir)
+
+     if not os.path.exists(ssh_config):
+          log.info(f"creating ssh config file: '{ssh_config}'")
+          with open(ssh_config, "w") as f: 
+                    f.write(" ")
+
+     log.info(f"setting ownership of '{ssh_config_dir}' to '{username}'")
+     func.recursive_chown(ssh_config_dir, username)
+
+     if not os.path.exists(ssh_env):
+          log.info(f"creating ssh environment file: '{ssh_env}'")
+          
+          for env, value in system_env.items():
+               env_var = f"{env}={value}"
+               with open(ssh_env, "a") as f: 
+                         f.write(env_var + "\n")
+          log.info(f"ssh env file:")
+          log.info(run(["cat", ssh_env]))
+
+def set_user_paths(config):
+     username = config.get("name")
+
+     for name, attr in config.get("dirs").items():
+          dir_path = attr.get("path")
+          dir_mode = attr.get("mode")
+          if not os.path.exists(dir_path):
+               log.info(f"creating directory: '{dir_path}'")
+               os.makedirs(dir_path)
+          log.info(f"setting ownership of '{dir_path}', to '{username}'")
+          func.recursive_chown(dir_path, username)
+          log.info(f"setting mode of '{dir_path}', to '{dir_mode}'")
+          func.recursive_chmod(dir_path, dir_mode)
 
 def run_pass_change(username, hash):
      log.info(f"new password hash: '{hash}'")
@@ -46,10 +155,11 @@ def run_pass_change(username, hash):
 
 def check_current_pass(username):
      current_password_hash = spwd.getspnam(username).sp_pwdp
-     if current_password_hash == '':
+     empty_passwords = ['', '!']
+     if current_password_hash in empty_passwords:
           log.info("current password: empty")
           return 'empty'
-     if not current_password_hash == '':
+     elif not current_password_hash in empty_passwords:
           log.info("current password: set")
           return 'set'
      else:
@@ -122,6 +232,63 @@ def change_user_shell(username, shell):
      else:
           log.info("unknown error")
 
+def init_shell(config, environment):
+     username = config.get("name")
+     home = os.path.join("/home", username)
+     workspace_dir = config.get("dirs").get("workspace").get("path")
+     resources_dir = config.get("dirs").get("resources").get("path")
+     user_env = environment
+     
+     ### Set conda envs
+     conda_root = os.path.join(home, ".conda")
+     user_env['PATH'] += os.pathsep + os.path.join(conda_root, "bin")
+     conda_env = environment
+     conda_env['USER'] = user
+     conda_env['HOME'] = home
+     conda_env['CONDA_BIN'] = conda_root
+
+     # Install conda
+     func.run_shell_installer_url(
+          'https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh', 
+          ['-u', '-b', '-p', conda_root], 
+          os.environ.copy()
+     )
+
+     ### Set Path
+     #conda_bin = os.path.join(conda_root, 'condabin', 'conda')
+     ### Set Paths
+     # conda
+     conda_root = os.path.join(home, ".conda")
+     conda_bin_path = os.path.join(conda_root, "bin")
+     conda_bin_dir = os.path.join(conda_root, 'condabin')
+     conda_bin_exe = os.path.join(conda_root, 'condabin', 'conda')
+     user_env['CONDA_BIN'] = conda_root
+     user_env['PATH'] += os.pathsep + conda_bin_path
+     user_env['PATH'] += os.pathsep + conda_bin_dir
+     conda_env['PATH'] += os.pathsep + conda_bin_path
+     conda_env['PATH'] += os.pathsep + conda_bin_dir
+
+     # pyenv dir
+     pyenv_root = f"{resources_dir}/.pyenv"
+     user_env['PATH'] += os.pathsep + os.path.join(pyenv_root, "shims")
+     user_env['PATH'] += os.pathsep + os.path.join(pyenv_root, "bin")
+
+     # local
+     local_bin = os.path.join(home, ".local/bin")
+     user_env['PATH'] += os.pathsep + local_bin
+
+    ### Disable auto conda activation
+     run(
+          ['conda', 'config', '--set', 'auto_activate_base', 'false'],
+          env=conda_env
+     )
+     
+     #user_env['PATH'] += os.pathsep + os.path.join(pyenv_root, "shims")
+     #user_env['PATH'] += os.pathsep + os.path.join(pyenv_root, "bin")
+     #user_env['PATH'] += os.pathsep + os.path.join(conda_root, "bin")
+
+     return user_env
+
 ### Enable logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
@@ -130,54 +297,146 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+system_env = os.environ.copy()
+
 ### Read system envs
-ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
-ENV_USER = os.getenv("SUDO_USER", "coder")
-ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
+ENV_USER = os.getenv("USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
+
+### Read docker envs
+ENV_WORKSPACE_USER = os.getenv("WORKSPACE_USER", "coder")
+ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
 ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
+ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
 
 ### Clean up envs
 application = "config_user"
-host_fqdn = ENV_HOSTNAME
-
-
-#@TODO: add this later to enable proxy's base url
-#clients = docker.from_env()
-#host_container = clients.containers.get(ENV_HOSTNAME)
-#host = host_container.name
+user = ENV_WORKSPACE_USER
+home = os.path.join("/home", ENV_WORKSPACE_USER)
 
 ### Set config and data paths
-config_dir = os.path.join("/etc", application)
-storage = os.path.join(config_dir, "storage")
-if not os.path.exists(config_dir): os.mkdir(config_dir)
-if not os.path.exists(storage): os.mkdir(storage)
-
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
+resources_dir = os.path.normpath(ENV_RESOURCES_PATH)
 data_dir = os.path.normpath(ENV_DATA_PATH)
+apps_dir = os.path.normpath(ENV_APPS_PATH)
+     
+users = dict()
 
-### Generate password hash
-password = ENV_WORKSPACE_AUTH_PASSWORD.encode()
-salt = bcrypt.gensalt()
-hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
-#log.info(f"{application} password: '{ENV_WORKSPACE_AUTH_PASSWORD}'")
-#log.info(f"{application} hashed password: '{hashed_password}'")
-os.environ['HASHED_PASSWORD'] = hashed_password
+#USERS = f"coder:1000:100:zsh test:1001:101:bash"
+USERS = f"coder:1000:100:zsh:{ENV_WORKSPACE_AUTH_PASSWORD}"
+
+for user in USERS.split(" "):
+     configs = user.split(":")
+     log.info(configs)
+     name = configs[0]
+     uid = configs[1]
+     gid = configs[2]
+     shell = configs[3]
+     password = configs[4]
+     home = os.path.join("/home", name)
+     
+     if shell == "zsh": 
+          shell_path = "/usr/bin/zsh"
+     elif shell == "bash":
+          shell_path = "/bin/bash"
+     else:
+          log.info(f"invalid shell for user '{name}': '{shell}'")
+
+     users[name] = {
+          'name': name,
+          'uid': uid,
+          'gid': gid,
+          'shell': shell_path,
+          'password': password,
+          'dirs' : {
+               'home': {
+                    'path': home,
+                    'mode': "755"
+               },
+               'resources': {
+                    'path': resources_dir, 
+                    'mode': "755"
+               },
+               'workspace':  {
+                    'path': workspace_dir,
+                    'mode': "755"
+               },
+               'data': {
+                    'path': data_dir,
+                    'mode': "755"
+               },
+               'app': {
+                    'path': apps_dir,
+                    'mode': "755"
+               }
+          }
+     }
+
+for user, config in users.items():
+     username = config.get("name")
+     workspace_auth_password = config.get("password")
+     user_exists, user_record = check_user_exists(username)
+     if user_exists == 'no':
+          log.info(f"Creating user: '{username}'")
+          create_user(config)
+          setup_ssh(username, system_env)
+          change_pass(username, "password", config.get("password"))
+          change_user_shell(username, config.get("shell"))
+          
+          user_env = init_shell(config, system_env)
+          
+          set_user_paths(config)
+          user_exists, user_record = check_user_exists(username)
+          log.info(user_record)
+
+          # configure system services
+          services = ["ssh"]
+          for serv in services:
+               log.info(f"configuring system service: '{serv}'")
+               run(
+                    ['python3', f"/scripts/configure_{serv}.py"], 
+                    env=user_env
+               )
+
+          # configure user services
+          services = ["zsh", "caddy", "vscode", "filebrowser", "app"]
+          for serv in services:
+               log.info(f"configuring user service: '{serv}'")
+               run(
+                    ['sudo', '-i', '-u', username, 'python3', f"/scripts/configure_{serv}.py"], 
+                    env=user_env
+               )
+
+          startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
+          if os.path.exists(startup_custom_script):
+               log.info("Run on_startup.sh user script from workspace folder")
+               # run startup script from workspace folder - can be used to run installation routines on workspace updates
+               run(
+                    ['/bin/bash', startup_custom_script], 
+                    env=user_env
+               )
+
+          ### Create conda environments
+          #@TODO: fix conda PATH to avoid using conda_exe trick
+          conda_exe = os.path.join(home, ".conda", 'condabin', 'conda')
+          run(
+               ['sudo', '-i', '-u', username, conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py'], 
+               env=user_env
+          )
+
+          for env, value in user_env.items():
+               func.set_env_variable(env, value, ignore_if_set=False)
+
+     elif user_exists == 'yes':
+          user_env = os.environ.copy()
+          log.info(f"User exists '{username}'")
+
+          for env, value in user_env.items():
+               func.set_env_variable(env, value, ignore_if_set=True)
+          
+     else:
+          log.info(f"User exists 'error'")
 
 
-change_pass(ENV_USER, "password", ENV_WORKSPACE_AUTH_PASSWORD)
-change_user_shell(ENV_USER, shell="/usr/bin/zsh")
-user_exists, user_record = check_user_exists(ENV_USER)
-log.info(user_record)
-
-### Write config file
-#config_path = os.path.join(config_dir, f"{application}.json")
-#config_json = json.dumps(config_file, indent = 4)
-
-#with open(config_path, "w") as f: 
-#    f.write(config_json)
-
-#log.info(f"{application} config:")
-#log.info(subprocess.run(["cat", config_path]))

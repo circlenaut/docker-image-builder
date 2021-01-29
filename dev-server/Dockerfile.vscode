@@ -26,229 +26,88 @@ RUN \
     && clean-layer.sh
 
 ### Create a new user
-ARG UNAME=coder 
-ARG UID=1000
-ARG GID=100
-RUN \
-    groupadd --gid $GID -o $UNAME \
-    && useradd \
-      --uid $UID \
-      --gid $GID \
-      --create-home \
-      --shell /bin/bash \ 
-      $UNAME \
-    && passwd -d $UNAME \
-    && adduser $UNAME sudo
-RUN \
-    echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME \
-    && chmod 0440 /etc/sudoers.d/$UNAME
+#ARG UNAME=coder 
+#ARG UID=1000
+#ARG GID=100
+#RUN \
+#    groupadd --gid $GID -o $UNAME \
+#    && useradd \
+#      --uid $UID \
+#      --gid $GID \
+#      --create-home \
+#      --shell /bin/bash \ 
+#      $UNAME \
+#    && passwd -d $UNAME \
+#    && adduser $UNAME sudo
+#RUN \
+#    echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME \
+#    && chmod 0440 /etc/sudoers.d/$UNAME
 
-WORKDIR /home/$UNAME
+#WORKDIR /home/$UNAME
 
 ### Setup SSH
-RUN \
-    mkdir -p /home/$UNAME/.ssh/ \
-    # create empty config file if not exists
-    touch /home/$UNAME/.ssh/config \
-    && sudo chown -R $UNAME:users /home/$UNAME/.ssh \
-    && chmod 700 /home/$UNAME/.ssh \
-    && printenv >> /home/$UNAME/.ssh/environment
+#RUN \
+#    mkdir -p /home/$UNAME/.ssh/ \
+#    # create empty config file if not exists
+#    touch /home/$UNAME/.ssh/config \
+#    && sudo chown -R $UNAME:users /home/$UNAME/.ssh \
+#    && chmod 700 /home/$UNAME/.ssh \
+#    && printenv >> /home/$UNAME/.ssh/environment
 
 ### Fix logging
 RUN sed -i '/imklog/s/^/#/' /etc/rsyslog.conf
 
 ### Set user permissions
-RUN \
-    mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
-    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
-    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
-    && chown -R $UNAME:$UNAME $DATA_PATH
-
-RUN chown -R $UNAME:$UNAME /opt
-RUN \ 
-    cp -r /root/.bashrc /home/$UNAME \
-    && cp -r /root/.conda /home/$UNAME \
-    && chown -R $UNAME:$UNAME /home/$UNAME
-    
-
-RUN \
-    apt-get update \
-    && apt-get install -y --no-install-recommends \
-        zsh \
-        dialog \
-        autojump \
-        git-flow \
-        git-extras
-
-USER $UNAME
-
-ENV \
-    DEBIAN_FRONTEND=noninteractive \
-    PATH=/home/$UNAME/.local/bin:$PATH
-
-RUN \
-    pip3 install \
-        Pygments \
-        ranger-fm \
-        thefuck \
-        bpytop 
-
-### Install and activate ZSH
-RUN mkdir $RESOURCES_PATH/zsh
-COPY scripts/zsh-in-docker.sh $RESOURCES_PATH/zsh/zsh-in-docker.sh
-#RUN sudo chown -R $UNAME:$UNAME $RESOURCES_PATH/zsh
-
 #RUN \
-#    #sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.1.1/zsh-in-docker.sh)" -- \
-#    /bin/bash -c "$RESOURCES_PATH/zsh/zsh-in-docker.sh" -- \
-#    #sh -c "$(/resources/zsh/zsh-in-docker.sh)" -- \
-#    -t https://github.com/denysdovhan/spaceship-prompt \
-#    -a 'SPACESHIP_PROMPT_ADD_NEWLINE="false"' \
-#    -a 'SPACESHIP_PROMPT_SEPARATE_LINE="false"' \
-#    -p git \
-#    -p k \
-#    -p extract \
-#    -p cp \
-#    -p yarn \
-#    -p npm \
-#    -p supervisor \
-#    -p rsync \
-#    -p command-not-found \
-#    -p autojump \
-#    -p colored-man-pages \
-#    -p git-flow \
-#    -p git-extras \
-#    -p python \
-#    -p zsh-autosuggestions \
-#    -p history-substring-search \
-#    -p zsh-completions \
-#    -p ssh-agent \
-#    -p https://github.com/zsh-users/zsh-autosuggestions \
-#    -p https://github.com/zsh-users/zsh-completions \
-#    -p https://github.com/zsh-users/zsh-syntax-highlighting \
-#    -p https://github.com/zsh-users/zsh-history-substring-search \
-#    -p https://github.com/supercrabtree/k \
-#    -a 'eval "$(pyenv virtualenv-init -)"' \
-#    -a 'autoload -U bashcompinit' \
-#    -a 'bashcompinit' \
-#    -a 'eval "$(register-python-argcomplete pipx)"'
+#    mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
+#    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
+#    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+#    && chown -R $UNAME:$UNAME $DATA_PATH
 
-#RUN \
-#    export PATH="/opt/conda/bin:$PATH" \
-    # Make zsh the default shell
-    # Initialize conda for command line activation
-#    && conda init zsh \
-#    && sudo chsh -s $(which zsh) $UNAME \
-    # Install sdkman - needs to be executed after zsh
-#    && curl -s https://get.sdkman.io | bash
+#RUN chown -R $UNAME:$UNAME /opt
+#RUN \ 
+#    cp -r /root/.bashrc /home/$UNAME \
+#    && cp -r /root/.conda /home/$UNAME \
+#    && chown -R $UNAME:$UNAME /home/$UNAME
 
-
-### Install Conda base environment
-RUN \
-    export PATH="/opt/conda/bin:$PATH" \
-    && conda install -c conda-forge --quiet --yes \ 
-        python=3.8 \
-        pip \
-        pyyaml \
-        yaml
-
-
-
-### Configure git
-RUN \
-    git config --global core.fileMode false && \
-    git config --global http.sslVerify false && \
-    # Use store or credentialstore instead? timout == 365 days validity
-    git config --global credential.helper 'cache --timeout=31540000'
-
-### Pull and install VSCode extensions
-RUN \
-    /usr/bin/code-server \
-    --install-extension ms-python.python \
-    --install-extension almenon.arepl \
-    --install-extension batisteo.vscode-django \
-    --install-extension bierner.color-info \
-    --install-extension bierner.markdown-footnotes \
-    --install-extension bierner.markdown-mermaid \
-    --install-extension bierner.markdown-preview-github-styles \
-    --install-extension CoenraadS.bracket-pair-colorizer-2 \
-    --install-extension DavidAnson.vscode-markdownlint \
-    --install-extension donjayamanne.githistory \
-    --install-extension donjayamanne.python-extension-pack \
-    --install-extension eamodio.gitlens \
-    --install-extension hbenl.vscode-test-explorer \
-    --install-extension henriiik.docker-linter \
-    --install-extension kamikillerto.vscode-colorize \
-    --install-extension kisstkondoros.vscode-gutter-preview \
-    --install-extension littlefoxteam.vscode-python-test-adapter \
-    --install-extension magicstack.MagicPython \
-    --install-extension ms-azuretools.vscode-docker \
-    --install-extension ms-python.python \
-    --install-extension ms-toolsai.jupyter \
-    --install-extension naumovs.color-highlight \
-    #--install-extension RandomFractalsInc.vscode-data-preview \
-    #--install-extension searKing.preview-vscode \
-    --install-extension shd101wyy.markdown-preview-enhanced \
-    #--install-extension SimonSiefke.svg-preview \
-    --install-extension streetsidesoftware.code-spell-checker \
-    #--install-extension Syler.ignore \
-    --install-extension tht13.html-preview-vscode \
-    --install-extension tht13.python \
-    --install-extension tushortz.python-extended-snippets \
-    #--install-extension VisualStudioExptTeam.vscodeintellicode \
-    --install-extension wholroyd.jinja \
-    #--install-extension xpol.extra-markdown-plugins \
-    --install-extension yzhang.markdown-all-in-one
-
-### InstalllLocal VSCode extensions
-#COPY --chown=$UNAME:$UNAME files/extensions/ms-python.python-2020.10.332292344.vsix /tmp/ms-python.python-2020.10.332292344.vsix \
-COPY --chown=$UNAME:$UNAME files/extensions/RandomFractalsInc.vscode-data-preview-2.2.0.vsix /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix
-COPY --chown=$UNAME:$UNAME files/extensions/SimonSiefke.svg-preview-2.8.3.vsix /tmp/SimonSiefke.svg-preview-2.8.3.vsix
-    
-RUN \
-    #! code-server --install-extension /tmp/ms-python.python-2020.10.332292344.vsix || true \
-    ! code-server --install-extension /tmp/RandomFractalsInc.vscode-data-preview-2.2.0.vsix || true \
-    ! code-server --install-extension /tmp/SimonSiefke.svg-preview-2.8.3.vsix || true
-
-USER root
 ### Copy some configuration files
-# copy workspace scripts
+# copy system scripts
 COPY scripts/__init__.py $SCRIPTS_PATH
 COPY scripts/docker-entrypoint.py /
+COPY scripts/functions.py $SCRIPTS_PATH
 COPY scripts/run_workspace.py $SCRIPTS_PATH
-COPY scripts/setup_workspace.py $SCRIPTS_PATH
 COPY scripts/configure_user.py $SCRIPTS_PATH
-COPY scripts/backup_restore_config.py $SCRIPTS_PATH
-# copy custom libraries
-COPY scripts/conda_parser.py $SCRIPTS_PATH
-COPY scripts/users_mod.py $SCRIPTS_PATH
-# copy application scripts
-COPY scripts/configure_zsh.py $SCRIPTS_PATH
 COPY scripts/configure_ssh.py $SCRIPTS_PATH
-COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
-COPY scripts/configure_caddy.py $SCRIPTS_PATH
-COPY scripts/configure_app.py $SCRIPTS_PATH
+COPY scripts/backup_restore_config.py $SCRIPTS_PATH
 # copy supervisor configs
 COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
 COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 # copy ssh config
 COPY configs/ssh/ssh_config configs/ssh/sshd_config  /etc/ssh/
-# copy vscode config
-COPY configs/vscode/settings.json /home/$UNAME/.config/Code/User/settings.json
+# copy custom libraries
+COPY scripts/conda_parser.py $SCRIPTS_PATH
+COPY scripts/users_mod.py $SCRIPTS_PATH
+# copy user scripts
+COPY scripts/configure_zsh.py $SCRIPTS_PATH
+COPY scripts/configure_vscode.py $SCRIPTS_PATH
+COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
+COPY scripts/configure_caddy.py $SCRIPTS_PATH
+COPY scripts/configure_app.py $SCRIPTS_PATH
+COPY scripts/setup_workspace.py $SCRIPTS_PATH
 
 ### Fix permissions and cleanup
-RUN \
-    chmod -R a+rwx $RESOURCES_PATH \
-    && chmod -R a+rwx $WORKSPACE_HOME \
-    && chmod -R a+rwx $APPS_PATH \
-    && chmod -R a+rw $DATA_PATH \
-    && echo 'cd '$WORKSPACE_HOME >> /home/$UNAME/.bashrc \
-    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
-    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
-    && chown -R $UNAME:$UNAME $APPS_PATH \
-    && chown -R $UNAME:$UNAME $DATA_PATH \
-    && chown -R $UNAME:$UNAME /home/$UNAME
+#RUN \
+#    chmod -R a+rwx $RESOURCES_PATH \
+#    && chmod -R a+rwx $WORKSPACE_HOME \
+#    && chmod -R a+rwx $APPS_PATH \
+#    && chmod -R a+rw $DATA_PATH \
+#    && echo 'cd '$WORKSPACE_HOME >> /home/$UNAME/.bashrc \
+#    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
+#    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
+#    && chown -R $UNAME:$UNAME $APPS_PATH \
+#    && chown -R $UNAME:$UNAME $DATA_PATH \
+#    && chown -R $UNAME:$UNAME /home/$UNAME
 
-USER $UNAME
+#USER $UNAME
 
 ENTRYPOINT ["python3", "/docker-entrypoint.py"]

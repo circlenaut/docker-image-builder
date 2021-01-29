@@ -5,15 +5,11 @@ Configure caddy service
 """
 
 import os
-import shutil
 import sys
 import json
-import docker
 import bcrypt
 import logging
-from pathlib      import Path
 from urllib.parse import quote, urljoin
-from copy         import copy
 from subprocess   import run, call
 
 def clean_url(base_url):
@@ -34,7 +30,7 @@ log = logging.getLogger(__name__)
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
 ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
-ENV_USER = os.getenv("SUDO_USER", "coder")
+ENV_USER = os.getenv("WORKSPACE_USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
@@ -78,16 +74,14 @@ enable_gzip = True if ENV_CADDY_PROXY_ENCODINGS_GZIP == "true" else False
 enable_zstd = True if ENV_CADDY_PROXY_ENCODINGS_ZSTD == "true" else False
 enable_templates = True if ENV_CADDY_PROXY_TEMPLATES == "true" else False
 
-#@TODO: add this later to enable proxy's base url
-#clients = docker.from_env()
-#host_container = clients.containers.get(ENV_HOSTNAME)
-#host = host_container.name
-
 ### Set config and data paths
-config_dir = os.path.join("/etc", application)
+config_dir = os.path.join(ENV_HOME, ".config", application)
+if not os.path.exists(config_dir):
+    os.makedirs(config_dir)
+
 storage = os.path.join(config_dir, "storage")
-if not os.path.exists(config_dir): os.mkdir(config_dir)
-if not os.path.exists(storage): os.mkdir(storage)
+if not os.path.exists(storage): 
+    os.mkdir(storage)
 
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
 apps_dir = os.path.normpath(ENV_APPS_PATH)
@@ -223,13 +217,16 @@ for service in service_settings:
             }
     subroutes.append(subroute)
 
+
 if host_fqdn != None:
+    if host_fqdn == "":
+        match = []
+    else:
+        match = {            
+            "host": [host_fqdn]
+        }
     route = {
-        "match": [{
-            "host": [
-                host_fqdn
-            ]
-        }],
+        "match": match,
         "handle": subroutes,
         "terminal": True
     }
@@ -237,9 +234,9 @@ if servers['default'].get('routes') == None:
     servers['default']['listen'] = [f"{host_ip}:{host_port}"]
     servers['default']['routes'] = [route]
     servers['default']['logs'] = {
-                    "logger_names": {
-                        host_fqdn: "common",
-                    }
+        "logger_names": {
+            host_fqdn: "common",
+        }
     }
 else:
     servers['default']['routes'].append(route)
@@ -317,7 +314,7 @@ config_file = {
 }
 
 ### Write config file
-config_path = os.path.join(config_dir, f"{application}.json")
+config_path = os.path.join(config_dir, "settings.json")
 config_json = json.dumps(config_file, indent = 4)
 
 with open(config_path, "w") as f: 
