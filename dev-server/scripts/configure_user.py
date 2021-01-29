@@ -382,53 +382,73 @@ def setup_user(config, environment):
 
      return user_env
 
-def run_user_services_config(username, environment):
+def run_user_services_config(username, environment, exists):
      # configure user services and options
-     services = {
-          "caddy": {
-               "config": {}
-          }, 
-          "vscode": {
-               "config": {
-                    "extensions": [
-                         'ms-python.python',
-                         'almenon.arepl',
-                         'batisteo.vscode-django',
-                         'bierner.color-info',
-                         'bierner.markdown-footnotes',
-                         'bierner.markdown-mermaid',
-                         'bierner.markdown-preview-github-styles',
-                         'CoenraadS.bracket-pair-colorizer-2',
-                         'DavidAnson.vscode-markdownlint',
-                         'donjayamanne.githistory',
-                         'donjayamanne.python-extension-pack',
-                         'eamodio.gitlens',
-                         'hbenl.vscode-test-explorer',
-                         'henriiik.docker-linter',
-                         'kamikillerto.vscode-colorize',
-                         'kisstkondoros.vscode-gutter-preview',
-                         'littlefoxteam.vscode-python-test-adapter',
-                         'magicstack.MagicPython',
-                         'ms-azuretools.vscode-docker',
-                         'ms-toolsai.jupyter',
-                         'naumovs.color-highlight',
-                         'shd101wyy.markdown-preview-enhanced',
-                         'streetsidesoftware.code-spell-checker',
-                         'tht13.html-preview-vscode',
-                         'tht13.python',
-                         'tushortz.python-extended-snippets',
-                         'wholroyd.jinja',
-                         'yzhang.markdown-all-in-one',
-                    ]
+     services = dict()
+     log.info(exists)
+     if exists:
+          services = {
+               "caddy": {
+                    "config": {}
+               }, 
+               "vscode": {
+                    "config": {
+                         "extensions": []
+                    }
+               }, 
+               "filebrowser": {
+                    "config": {}
+               }, 
+               "app": {
+                    "config": {}
                }
-          }, 
-          "filebrowser": {
-               "config": {}
-          }, 
-          "app": {
-               "config": {}
-          }
-     } 
+          } 
+     else:
+          services = {
+               "caddy": {
+                    "config": {}
+               }, 
+               "vscode": {
+                    "config": {
+                         "extensions": [
+                              'ms-python.python',
+                              'almenon.arepl',
+                              'batisteo.vscode-django',
+                              'bierner.color-info',
+                              'bierner.markdown-footnotes',
+                              'bierner.markdown-mermaid',
+                              'bierner.markdown-preview-github-styles',
+                              'CoenraadS.bracket-pair-colorizer-2',
+                              'DavidAnson.vscode-markdownlint',
+                              'donjayamanne.githistory',
+                              'donjayamanne.python-extension-pack',
+                              'eamodio.gitlens',
+                              'hbenl.vscode-test-explorer',
+                              'henriiik.docker-linter',
+                              'kamikillerto.vscode-colorize',
+                              'kisstkondoros.vscode-gutter-preview',
+                              'littlefoxteam.vscode-python-test-adapter',
+                              'magicstack.MagicPython',
+                              'ms-azuretools.vscode-docker',
+                              'ms-toolsai.jupyter',
+                              'naumovs.color-highlight',
+                              'shd101wyy.markdown-preview-enhanced',
+                              'streetsidesoftware.code-spell-checker',
+                              'tht13.html-preview-vscode',
+                              'tht13.python',
+                              'tushortz.python-extended-snippets',
+                              'wholroyd.jinja',
+                              'yzhang.markdown-all-in-one',
+                         ]
+                    }
+               }, 
+               "filebrowser": {
+                    "config": {}
+               }, 
+               "app": {
+                    "config": {}
+               }
+          } 
 
      for serv, opts in services.items():
           log.info(f"configuring user service: '{serv}'")
@@ -533,7 +553,9 @@ for u, config in users.items():
      if not user_exists and not home_exists:
           log.info(f"User and home does not exist, creating: '{name}'")
           user_env = setup_user(config, system_env)
-          run_user_services_config(name, user_env)
+
+          exists = False      
+          run_user_services_config(name, user_env, exists)
 
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=False)
@@ -546,6 +568,7 @@ for u, config in users.items():
           #@TODO: write function similar to setup_user that copies existing 
           # shadows info and init's shell
 
+          exists = False
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=True)
 
@@ -567,7 +590,9 @@ for u, config in users.items():
           # fix permissions
           set_user_paths(config)
           # Configure services
-          run_user_services_config(name, user_env)
+          
+          exists = True
+          run_user_services_config(name, user_env, exists)
           ssh_dir = os.path.join(config.get("dirs").get("home").get("path"), ".ssh")
           log.info("setting correct permissions on '.ssh'")
           func.recursive_chmod(ssh_dir, "600")
@@ -582,6 +607,7 @@ for u, config in users.items():
           user_env = os.environ.copy()
           log.info(f"User and home exists '{name}'")
 
+          exists = True
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=True)                    
           
