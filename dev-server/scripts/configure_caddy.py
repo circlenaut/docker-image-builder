@@ -64,7 +64,7 @@ ENV_APP_ROOT_DIR = os.getenv("APP_ROOT_DIR", "/apps/app")
 ### Clean up envs
 application = "caddy"
 proxy_base_url = clean_url(ENV_PROXY_BASE_URL)
-host_fqdn = ENV_CADDY_VIRTUAL_HOST
+host_fqdn = ENV_CADDY_VIRTUAL_HOST # @TODO: Not reading from env
 host_port = ENV_CADDY_VIRTUAL_PORT
 host_ip = "0.0.0.0"
 host_proto = ENV_CADDY_VIRTUAL_PROTO

@@ -243,7 +243,7 @@ def init_shell(config, environment):
      conda_root = os.path.join(home, ".conda")
      user_env['PATH'] += os.pathsep + os.path.join(conda_root, "bin")
      conda_env = environment
-     conda_env['USER'] = user
+     conda_env['USER'] = username
      conda_env['HOME'] = home
      conda_env['CONDA_BIN'] = conda_root
 
@@ -313,8 +313,9 @@ ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
 
 ### Clean up envs
 application = "config_user"
-user = ENV_WORKSPACE_USER
+username = ENV_WORKSPACE_USER
 home = os.path.join("/home", ENV_WORKSPACE_USER)
+workspace_password = ENV_WORKSPACE_AUTH_PASSWORD
 
 ### Set config and data paths
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
@@ -325,10 +326,10 @@ apps_dir = os.path.normpath(ENV_APPS_PATH)
 users = dict()
 
 #USERS = f"coder:1000:100:zsh test:1001:101:bash"
-USERS = f"coder:1000:100:zsh:{ENV_WORKSPACE_AUTH_PASSWORD}"
+USERS = f"{username}:1000:100:zsh:{workspace_password}"
 
-for user in USERS.split(" "):
-     configs = user.split(":")
+for u in USERS.split(" "):
+     configs = u.split(":")
      log.info(configs)
      name = configs[0]
      uid = configs[1]
@@ -374,21 +375,21 @@ for user in USERS.split(" "):
           }
      }
 
-for user, config in users.items():
-     username = config.get("name")
+for u, config in users.items():
+     name = config.get("name")
      workspace_auth_password = config.get("password")
-     user_exists, user_record = check_user_exists(username)
+     user_exists, user_record = check_user_exists(name)
      if user_exists == 'no':
-          log.info(f"Creating user: '{username}'")
+          log.info(f"Creating user: '{name}'")
           create_user(config)
-          setup_ssh(username, system_env)
-          change_pass(username, "password", config.get("password"))
-          change_user_shell(username, config.get("shell"))
+          setup_ssh(name, system_env)
+          change_pass(name, "password", config.get("password"))
+          change_user_shell(name, config.get("shell"))
           
           user_env = init_shell(config, system_env)
           
           set_user_paths(config)
-          user_exists, user_record = check_user_exists(username)
+          user_exists, user_record = check_user_exists(name)
           log.info(user_record)
 
           # configure system services
@@ -405,7 +406,7 @@ for user, config in users.items():
           for serv in services:
                log.info(f"configuring user service: '{serv}'")
                run(
-                    ['sudo', '-i', '-u', username, 'python3', f"/scripts/configure_{serv}.py"], 
+                    ['sudo', '-i', '-u', name, 'python3', f"/scripts/configure_{serv}.py"], 
                     env=user_env
                )
 
@@ -422,7 +423,7 @@ for user, config in users.items():
           #@TODO: fix conda PATH to avoid using conda_exe trick
           conda_exe = os.path.join(home, ".conda", 'condabin', 'conda')
           run(
-               ['sudo', '-i', '-u', username, conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py'], 
+               ['sudo', '-i', '-u', name, conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py'], 
                env=user_env
           )
 
@@ -431,7 +432,7 @@ for user, config in users.items():
 
      elif user_exists == 'yes':
           user_env = os.environ.copy()
-          log.info(f"User exists '{username}'")
+          log.info(f"User exists '{name}'")
 
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=True)

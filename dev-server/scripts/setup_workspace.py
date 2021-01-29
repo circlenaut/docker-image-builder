@@ -62,14 +62,6 @@ ENV_CONDA_ENV_PATH = os.getenv("CONDA_ENV_PATH")
 workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
 data_dir = os.path.normpath(ENV_DATA_PATH)
 
-### Fix permissions
-#conda_envs_path = "/opt/conda/envs"
-#log.info(f"fixing permissions for: '{data_dir}'")
-#subprocess.run(['sudo', 'chown', '-R','coder:users', data_dir])
-
-#log.info(f"fixing permissions for: '{conda_envs_path}'")
-#subprocess.run(['sudo', 'chown', '-R','coder:users', conda_envs_path])
-
 ### Process env files
 existing_envs = get_conda_envs()
 log.info(f"existing conda environments: '{existing_envs}")
