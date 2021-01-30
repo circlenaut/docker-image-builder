@@ -10,6 +10,7 @@ import random
 import subprocess
 import sys
 import time
+import json
 from crontab import CronTab, CronSlices
 
 # Enable logging
@@ -20,35 +21,43 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('mode', type=str, default="backup", help='Either backup or restore the workspace configuration.',
                     choices=["backup", "restore", "schedule"])
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
 
 args, unknown = parser.parse_known_args()
 if unknown:
-    log.info("Unknown arguments " + str(unknown))
+    log.error("Unknown arguments " + str(unknown))
 
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
+
+### Read system envs
 WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
 RESOURCE_FOLDER = os.getenv("RESOURCES_PATH", "/resources")
 DATA_PATH = os.getenv("DATA_PATH", "/data")
 ENV_USER = os.getenv("SUDO_USER", "coder")
 USER_HOME = os.path.join("/home", ENV_USER)
-#USER_HOME = os.getenv('HOME')
 CONFIG_BACKUP_ENABLED = os.getenv('CONFIG_BACKUP_ENABLED')
 CONFIG_BACKUP_FOLDER = WORKSPACE_HOME + "/.workspace/backup/"
 
 if args.mode == "restore":
     if CONFIG_BACKUP_ENABLED is None or CONFIG_BACKUP_ENABLED.lower() == "false" or CONFIG_BACKUP_ENABLED.lower() == "off":
-        log.info("Configuration Backup is not activated. Restore process will not be started.")
+        log.warning("Configuration Backup is not activated. Restore process will not be started.")
         sys.exit()
 
     log.info("Running config backup restore.")
 
     if not os.path.exists(CONFIG_BACKUP_FOLDER) or len(os.listdir(CONFIG_BACKUP_FOLDER)) == 0:
-        log.info("Nothing to restore. Config backup folder is empty.")
+        log.warning("Nothing to restore. Config backup folder is empty.")
         sys.exit()
     
-    # set verbose? -v
     rsync_restore =  "rsync -a -r -t -z -E -X -A " + CONFIG_BACKUP_FOLDER + " " + USER_HOME
     log.debug("Run rsync restore: " + rsync_restore)
     subprocess.run(rsync_restore, shell=True)
@@ -66,8 +75,6 @@ elif args.mode == "backup":
                         --include='/.jupyter/***' \
                         --include='/.vscode/***'"
     
-    # TODO configure selection via environemnt flag? 
-    # set verbose? -v
     rsync_backup =  "rsync -a -r -t -z -E -X -A --delete-excluded --max-size=100m \
                         " + backup_selection + " \
                         --exclude='/.ssh/environment' --include='/.ssh/***' \
@@ -79,7 +86,7 @@ elif args.mode == "schedule":
     DEFAULT_CRON = "0 * * * *"  # every hour
 
     if CONFIG_BACKUP_ENABLED is None or CONFIG_BACKUP_ENABLED.lower() == "false" or CONFIG_BACKUP_ENABLED.lower() == "off":
-        log.info("Configuration Backup is not activated.")
+        log.warning("Configuration Backup is not activated.")
         sys.exit()
 
     if not os.path.exists(CONFIG_BACKUP_FOLDER):
@@ -113,7 +120,7 @@ elif args.mode == "schedule":
         job.enable()
         cron.write()
     else:
-        log.info("Failed to schedule config backup. Cron is not valid.")
+        log.error("Failed to schedule config backup. Cron is not valid.")
 
     log.info("Running cron jobs:")
     for job in cron:

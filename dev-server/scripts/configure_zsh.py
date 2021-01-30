@@ -15,8 +15,6 @@ from subprocess   import run, call, Popen
 from users_mod    import PwdFile
 import functions as func
 
-
-
 def write_zsh_config(home, prompt, theme, plugin_list, additional_args):
     root_path = os.path.join(home, ".oh-my-zsh")
     config_path = os.path.join(home, ".zshrc")
@@ -65,6 +63,22 @@ logging.basicConfig(
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 ### Read system envs
 ENV_USER = os.getenv("USER", "coder")
@@ -229,7 +243,7 @@ if not os.path.exists(on_my_zsh_dir):
                 run(['git', 'clone', plugin, os.path.join(plugins_path, plugin_name)])
                 plugin_list[index] = plugin_name
             else:
-                log.info(f"repo down, skipping: '{plugin}'")                
+                log.error(f"repo down, skipping: '{plugin}'")                
         else:
             plugin_name = plugin
             plugin_list[index] = plugin_name
@@ -260,7 +274,7 @@ if not os.path.exists(on_my_zsh_dir):
                                 os.path.join(themes_path, filename)
                             )
             else:
-                log.info(f"repo down, skipping: '{theme_url}'")
+                log.error(f"repo down, skipping: '{theme_url}'")
 
     # Setup prompt
     prompts_path = os.path.join(home, ".oh-my-zsh/custom/prompts")
@@ -283,7 +297,7 @@ if not os.path.exists(on_my_zsh_dir):
                 fpath = f"fpath+={ prompt_dir}"
                 prompt[prompt_name]['fpath'] = fpath
             else:
-                log.info(f"repo down, skipping: '{prompt_url}'")            
+                log.error(f"repo down, skipping: '{prompt_url}'")            
 
     # Specify prompt specific settings
     if prompt_name == "pure": 
@@ -302,36 +316,34 @@ if not os.path.exists(on_my_zsh_dir):
     if set_prompt in prompt_names or set_prompt == "none":
         log.info(f"ZSH prompt set to: '{set_prompt}'")
     else:
-        log.info(f"Invalid ZSH prompt: '{set_prompt}'")
+        log.critical(f"Invalid ZSH prompt: '{set_prompt}'")
         sys.exit()
     
     if set_theme in installed_themes:
         if not set_prompt == "none":
-            log.info(f"Cannot use ZSH prompt '{set_prompt}' with themes. Disabling")
+            log.warning(f"Cannot use ZSH prompt '{set_prompt}' with themes. Disabling")
             set_prompt = "none"
         log.info(f"ZSH theme set to: '{set_theme}'")
     elif set_theme in oh_my_zsh_themes:
         if not set_prompt == "none":
-            log.info(f"Cannot use ZSH prompt '{set_prompt}' with themes. Disabling")
+            log.warning(f"Cannot use ZSH prompt '{set_prompt}' with themes. Disabling")
             set_prompt = "none"
         theme[set_theme] = dict()
         theme[set_theme]['name'] = set_theme
         theme[set_theme]['config'] = []
         log.info(f"ZSH theme set to: '{set_theme}'")
-        log.info(theme.get(set_theme).get("name"))
     elif set_theme == "none":
         if not set_prompt in prompt_names:
-            log.info(f"Must set ZSH theme when no prompt is specified.")
+            log.warning(f"Must set ZSH theme when no prompt is specified.")
             sys.exit()
         log.info(f"ZSH theme set to: '{set_theme}'")
     else:
-        log.info(f"Invalid theme: '{set_theme}'")
+        log.error(f"Invalid theme: '{set_theme}'")
         set_theme = default_theme
         theme[set_theme] = dict()
         theme[set_theme]['name'] = set_theme
         theme[set_theme]['config'] = []
         log.info(f"ZSH theme set to: '{set_theme}'")
-        log.info(theme.get(set_theme).get("name"))
 
     # Write config file
     write_zsh_config(
@@ -404,13 +416,13 @@ if not os.path.exists(on_my_zsh_dir):
 
     ### Set permissions
     #log.info(f"setting permissions on '{on_my_zsh_dir}' to '{ENV_WORKSPACE_USER}'")
-    #run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_WORKSPACE_USER}:users', on_my_zsh_dir])
+    #func.recursive_chown(on_my_zsh_dir, ENV_WORKSPACE_USER)
     #log.info(f"setting permissions on '{on_my_zsh_config_path}' to '{ENV_WORKSPACE_USER}'")
-    #run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_WORKSPACE_USER}:users', on_my_zsh_config_path])
+    #func.recursive_chown(on_my_zsh_config_path, ENV_WORKSPACE_USER)
 
     ### Display config to console
-    log.info(f"On My ZSH config:")
-    log.info(call(["cat", on_my_zsh_config_path]))
+    log.debug(f"On My ZSH config:")
+    log.debug(func.cat_file(on_my_zsh_config_path))
 
 else:
-    log.info("Oh-My-Zsh already installed")
+    log.warning("Oh-My-Zsh already installed")

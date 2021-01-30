@@ -11,7 +11,7 @@ import bcrypt
 import logging
 import argparse
 from urllib.parse import quote, urljoin
-from subprocess   import run
+from subprocess   import run, call
 import functions as func
 
 ### Enable logging
@@ -25,10 +25,18 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
 if unknown:
-    log.info("Unknown arguments " + str(unknown))
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
@@ -93,5 +101,7 @@ config_json = json.dumps(config_file, indent = 4)
 with open(config_path, "w") as f: 
     f.write(config_json)
 
-log.info(f"{application} config: '{config_path}'")
-log.info(run(["cat", config_path]))
+log.debug(f"{application} config: '{config_path}'")
+#log.debug(func.cat_file(config_path))
+#log.debug(config_json)
+log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))

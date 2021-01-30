@@ -10,15 +10,13 @@ import re
 import logging
 import requests
 from urllib.parse import quote, urljoin, urlparse
-from subprocess   import run, call, Popen
+from subprocess   import run, call, Popen, PIPE
 
 ### Enable logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
     level=logging.INFO, 
     stream=sys.stdout)
-
-log = logging.getLogger(__name__)
 
 def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False):
     if ignore_if_set and os.getenv(env_variable, None):
@@ -62,6 +60,21 @@ def read_file(path):
     with open(path) as f:
         lines = f.readlines()
     return lines
+
+def cat_file(path):
+    lines = read_file(path)
+    s = '\n'
+    cat = s.join(lines)
+    return cat
+
+def capture_cmd_stdout(cmd, environment):
+    command = cmd.split(" ")
+    # Python 3.4+
+    #result = run(command, stdout=PIPE, env=environment)
+    #output = result.stdout.decode('utf-8')
+    # Python 3.7+
+    output= run(command, capture_output=True, text=True, env=environment).stdout
+    return output
 
 def check_valid_url(string):
     regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
@@ -118,7 +131,7 @@ def run_shell_installer_url(url, args, environment):
                 break
         os.remove(filename)
     else:
-        log.info(f"invalid '{url}'")
+        log.error(f"invalid '{url}'")
 
 def merge_two_dicts(x, y):
     z = x.copy()   # start with x's keys and values

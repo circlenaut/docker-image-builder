@@ -12,7 +12,7 @@ import logging
 import argparse
 import json
 from urllib.parse import quote, urljoin
-from subprocess   import run, PIPE
+from subprocess   import run, call, PIPE
 import functions as func
 
 def get_installed_extensions():
@@ -43,13 +43,19 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
 if unknown:
-    log.info("Unknown arguments " + str(unknown))
+    log.error("Unknown arguments " + str(unknown))
 
 # load arguments
-cli_args = args.opts
+cli_opts = args.opts
+cli_settings = args.settings
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 ### Read system envs
 ENV_USER = os.getenv("WORKSPACE_USER", "coder")
@@ -135,9 +141,9 @@ run(
 installed_extensions = get_installed_extensions()
 
 ### Install VScode extensions
-for e in cli_args.get("config").get("extensions"):
+for e in cli_settings.get("config").get("extensions"):
     if e in installed_extensions:
-        log.info(f"vscode extension exists: '{e}'")
+        log.warning(f"vscode extension exists: '{e}'")
         continue
     else:
         log.info(f"vscode extension: '{e}'")
@@ -164,5 +170,8 @@ config_json = json.dumps(config_file, indent = 4)
 with open(config_path, "w") as f: 
     f.write(config_json)
 
-log.info(f"{application} config:")
-log.info(run(["cat", config_path]))
+log.debug(f"{application} config: '{config_path}'")
+#log.debug(call(["cat", config_path]))
+#log.debug(func.cat_file(config_path))
+#log.debug(config_json)
+log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))

@@ -95,6 +95,7 @@ services:
 #            'count': 1
 #            'capabilities': ['gpu', 'utility']
     environment:
+      LOG_VERBOSITY: "DEBUG"
       VIRTUAL_HOST: "pod2.colab.proneer.co"
 #      VIRTUAL_BIND_IP: "10.95.46.219"
 #      VIRTUAL_BIND_NET: "proxy"

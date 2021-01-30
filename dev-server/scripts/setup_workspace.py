@@ -7,17 +7,18 @@
 Configure and run development environments
 """
 
-import subprocess
-import contextlib
 import os
 import sys
 import json
 import logging
+import argparse
+import contextlib
 import conda.cli.python_api as Conda
+from subprocess import run
 from conda_parser import parse_environment
 
 def get_conda_envs():
-    proc = subprocess.run(["conda", "info", "--json", "--envs"],
+    proc = run(["conda", "info", "--json", "--envs"],
                text=True, capture_output=True)
     paths = json.loads(proc.stdout).get("envs")
     names = list()
@@ -27,19 +28,19 @@ def get_conda_envs():
     return names
 
 def conda_list(environment):
-    proc = subprocess.run(["conda", "list", "--json", "--name", environment],
+    proc = run(["conda", "list", "--json", "--name", environment],
                text=True, capture_output=True)
     return json.loads(proc.stdout)
 
 
 def conda_install(environment, *package):
-    proc = subprocess.run(["conda", "install", "--quiet", "--name", environment] + packages,
+    proc = run(["conda", "install", "--quiet", "--name", environment] + packages,
                text=True, capture_output=True)
     return json.loads(proc.stdout)
 
 def conda_create(environment_file):
     create_env = ['conda', 'env','create', '--file', environment_file]
-    proc = subprocess.run(create_env,
+    proc = run(create_env,
                text=True, capture_output=True)
     return proc.stdout
 
@@ -50,6 +51,22 @@ logging.basicConfig(
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
@@ -78,7 +95,7 @@ if not ENV_CONDA_ENV_PATH == None:
         conda_env = parse_environment(filename, body, force_solve)
         name = conda_env.get("name")
         if name in existing_envs:
-            log.info(f"environment exists: '{name}'")
+            log.warning(f"environment exists: '{name}'")
         else:
             if conda_env.get("error") == None:
                 log.info(f"reading '{ENV_CONDA_ENV_PATH}' and setting up environment: '{name}'")
@@ -87,12 +104,12 @@ if not ENV_CONDA_ENV_PATH == None:
                 proc = conda_create(conda_env_path)
                 log.info(proc)
             else:
-                log.info(f"Invalid file: '{conda_env_path}'" + "\n" + body)
-                log.info(conda_env)
+                log.error(f"Invalid file: '{conda_env_path}'" + "\n" + body)
+                log.debug(call(["env"], env=conda_env))
     else:
-        log.info(f"error: file doesn't exist '{conda_env_path}'")
+        log.error(f"error: file doesn't exist '{conda_env_path}'")
 else:
-    log.info("No environments to create")
+    log.warning("No environments to create")
 
 env_names = get_conda_envs()
 
@@ -115,7 +132,7 @@ for d in env_dirs:
                 #if name in env_names
                 log.info(f"setting up environment: '{name}'")
                 if name in env_names:
-                    log.info(f"environment exists: '{name}'")
+                    log.warning(f"environment exists: '{name}'")
                     continue
                 proc = conda_create(conda_env_path)
                 log.info(proc)

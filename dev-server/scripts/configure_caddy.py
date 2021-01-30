@@ -25,10 +25,18 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
 if unknown:
-    log.info("Unknown arguments " + str(unknown))
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 #@TODO: Turn this into a dictionary/function
 ### Read system envs
@@ -97,7 +105,7 @@ endpoint = letsencrypt_staging if ENV_CADDY_LETSENCRYPT_ENDPOINT == "dev" else l
 
 ### Run checks
 if not host_proto in ['http', 'https']:
-    log.info(f"{application}: protocol '{proto}' is not valid! Exiting.")
+    log.critical(f"{application}: protocol '{proto}' is not valid! Exiting.")
     sys.exit()
 
 ### Define application settings
@@ -324,7 +332,10 @@ with open(config_path, "w") as f:
     f.write(config_json)
 
 log.info(f"setting permissions on '{config_dir}' to '{ENV_USER}'")
-run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', config_dir])
+func.recursive_chown(config_dir, ENV_USER)
 
-log.info(f"{application} config: '{config_path}'")
-log.info(call(["cat", config_path]))
+log.debug(f"{application} config: '{config_path}'")
+#log.debug(func.cat_file(config_path))
+#log.debug(config_json)
+log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))
+

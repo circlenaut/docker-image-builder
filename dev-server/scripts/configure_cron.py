@@ -6,6 +6,7 @@ Configure and run cron scripts
 
 import os
 import sys
+import argparse
 from subprocess import run
 
 # Enable logging
@@ -17,8 +18,23 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
-#### Conifg Backup 
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
+
+#### Conifg Backup 
 # backup config directly on startup (e.g. ssh key)
 action = "backup"
 log.info(f"backup script: '{action}'")

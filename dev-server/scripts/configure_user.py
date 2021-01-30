@@ -9,6 +9,7 @@ import pwd
 import sys
 import shutil
 import psutil
+import argparse
 import json
 import bcrypt
 import logging
@@ -62,11 +63,11 @@ def create_user(config):
           log.info("group creation: success")
           return_codes.append(return_code)
      else:
-          log.info("group creation: error")
+          log.error("group creation: error")
           return_codes.append(return_code)
 
      if os.path.exists(home):
-          log.info(f"creating user without home: '{username}'")
+          log.warning(f"creating user without home: '{username}'")
           cmd = ['useradd', \
                '--uid', uid, \
                '--gid', gid, \
@@ -89,7 +90,7 @@ def create_user(config):
           log.info("user creation: success")
           return_codes.append(return_code)
      else:
-          log.info("user creation: error")
+          log.error("user creation: error")
           return_codes.append(return_code)
 
      log.info(f"adding to sudo: '{username}'")
@@ -100,7 +101,7 @@ def create_user(config):
           log.info(f"'{username}'' added to sudo: success")
           return_codes.append(return_code)
      else:
-          log.info(f"'{username}'' added to sudo: error")
+          log.error(f"'{username}'' added to sudo: error")
           return_codes.append(return_code)
 
      ### Create user sudo config
@@ -114,8 +115,8 @@ def create_user(config):
      log.info(f"fixing sudo config permission: '{sudo_config_path}'")
      func.chmod(sudo_config_path, "440")
 
-     log.info(f"sudo config file:")
-     log.info(run(["cat", sudo_config_path]))
+     log.debug(f"sudo config file:")
+     log.debug(func.cat_file(sudo_config_path))
      
 def setup_ssh(username, environment):
      system_env = environment
@@ -143,8 +144,8 @@ def setup_ssh(username, environment):
                env_var = f"{env}={value}"
                with open(ssh_env, "a") as f: 
                          f.write(env_var + "\n")
-          log.info(f"ssh env file:")
-          log.info(run(["cat", ssh_env]))
+          log.debug(f"ssh env file:")
+          log.debug(call(["cat", ssh_env]))
 
 def set_user_paths(config):
      username = config.get("name")
@@ -153,9 +154,9 @@ def set_user_paths(config):
           dir_path = attr.get("path")
           dir_mode = attr.get("mode")
           if os.path.exists(dir_path):
-               log.info(f"path exists: '{dir_path}'")
+               log.warning(f"path exists: '{dir_path}'")
                if Path(dir_path).owner() == username:
-                    log.info(f"path '{dir_path}', already owned by '{username}'")
+                    log.warning(f"path '{dir_path}', already owned by '{username}'")
                else:
                     # Set ownership of top path
                     log.info(f"setting ownership of '{dir_path}', to '{username}'")
@@ -166,7 +167,7 @@ def set_user_paths(config):
                     for d in os.listdir(dir_path):
                          p = os.path.join(dir_path, d)
                          if Path(p).owner() == username:
-                              log.info(f"path '{p}', already owned by '{username}'")
+                              log.warning(f"path '{p}', already owned by '{username}'")
                          else:
                               log.info(f"setting ownership of '{p}', to '{username}'")
                               func.recursive_chown(p, username)
@@ -189,20 +190,20 @@ def run_pass_change(username, hash):
           log.info('password change: success')
           return 'success'
      else:
-          log.info('password change: error')
+          log.error('password change: error')
           return 'error'
 
 def check_current_pass(username):
      current_password_hash = spwd.getspnam(username).sp_pwdp
      empty_passwords = ['', '!']
      if current_password_hash in empty_passwords:
-          log.info("current password: empty")
+          log.warning("current password: empty")
           return 'empty'
      elif not current_password_hash in empty_passwords:
           log.info("current password: set")
           return 'set'
      else:
-          log.info("current password: unknown error")
+          log.error("current password: unknown error")
           return 'error'
 
 def check_old_pass(username, password):
@@ -213,10 +214,10 @@ def check_old_pass(username, password):
           log.info(f"old password '{password}': valid")
           return 'valid'
      elif not current_password_hash == old_password_hash:
-          log.info(f"old password '{password}': invalid")
+          log.warning(f"old password '{password}': invalid")
           return 'invalid'
      else:
-          log.info("old password: unknown error")
+          log.error("old password: unknown error")
           return 'error'
 
 def change_pass(username, old_password, new_password):
@@ -237,7 +238,7 @@ def change_pass(username, old_password, new_password):
           if old_pass == 'valid':
                new_password_hash = crypt.crypt(new_password, current_password_hash)
                if new_password_hash == current_password_hash:
-                    log.info("new password same as current")
+                    log.warning("new password same as current")
                else:
                     run_pass_change(username, new_password_hash)
           elif old_pass == 'invalid':
@@ -247,10 +248,10 @@ def change_pass(username, old_password, new_password):
           elif old_pass == 'error':
                return 126
      elif not user_exists:
-          log.info(f"user: '{username}' does not exist")
+          log.error(f"user: '{username}' does not exist")
           return 1
      else:
-          log.info("unknown error")
+          log.error("unknown error")
 
 def change_user_shell(username, shell):
      user_exists, home_exists, record = check_user(username)
@@ -264,13 +265,13 @@ def change_user_shell(username, shell):
                log.info('password change: success')
                return 'success'
           else:
-               log.info('password change: error')
+               log.error('password change: error')
                return 'error'
      elif not user_exists:
-          log.info(f"user: '{username}' does not exist")
+          log.error(f"user: '{username}' does not exist")
           return 1
      else:
-          log.info("unknown error")
+          log.error("unknown error")
 
 def init_shell(config, environment):
      username = config.get("name")
@@ -343,14 +344,14 @@ def setup_user(config, environment):
      
      set_user_paths(config)
      user_exists, home_exists, user_record = check_user(config.get("name"))
-     log.info(user_record)
+     log.debug(user_record)
 
      # configure system services
      services = ["ssh", "cron"]
      for serv in services:
           log.info(f"configuring system service: '{serv}'")
           run(
-               ['python3', f"/scripts/configure_{serv}.py"], 
+               ['python3', f'/scripts/configure_{serv}.py', '--opts', load], 
                env=user_env
           )
 
@@ -359,7 +360,7 @@ def setup_user(config, environment):
      for serv in services:
           log.info(f"configuring user service: '{serv}'")
           run(
-               ['sudo', '-i', '-u', config.get("name"), 'python3', f"/scripts/configure_{serv}.py"], 
+               ['sudo', '-i', '-u', config.get("name"), 'python3', f'/scripts/configure_{serv}.py', '--opts', load], 
                env=user_env
           )
 
@@ -376,16 +377,15 @@ def setup_user(config, environment):
      #@TODO: fix conda PATH to avoid using conda_exe trick
      conda_exe = os.path.join(home, ".conda", 'condabin', 'conda')
      run(
-          ['sudo', '-i', '-u', config.get("name"), conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py'], 
+          ['sudo', '-i', '-u', config.get("name"), conda_exe, 'run','-n', 'base', 'python', '/scripts/setup_workspace.py', '--opts', load], 
           env=user_env
      )
 
      return user_env
 
-def run_user_services_config(username, environment, exists):
+def run_user_services_config(username, environment, exists, args):
      # configure user services and options
      services = dict()
-     log.info(exists)
      if exists:
           services = {
                "caddy": {
@@ -450,12 +450,13 @@ def run_user_services_config(username, environment, exists):
                }
           } 
 
-     for serv, opts in services.items():
+     cli_args_json = json.dumps(args)
+     for serv, settings in services.items():
           log.info(f"configuring user service: '{serv}'")
           # format dictionary arguments as json
-          load = json.dumps(opts)
+          settings_json = json.dumps(settings)
           run(
-               ['sudo', '-i', '-u', username, 'python3', f'/scripts/configure_{serv}.py', '--opts', load], 
+               ['sudo', '-i', '-u', username, 'python3', f'/scripts/configure_{serv}.py', '--opts', cli_args_json, '--settings', settings_json], 
                env=environment
           )
 
@@ -467,9 +468,21 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
-system_env = os.environ.copy()
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.error("Unknown arguments " + str(unknown))
+
+# load arguments
+cli_opts = args.opts
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 ### Read system envs
+system_env = os.environ.copy()
 ENV_USER = os.getenv("USER", "coder")
 ENV_HOME = os.path.join("/home", ENV_USER)
 
@@ -500,7 +513,6 @@ USERS = f"{username}:1000:100:zsh:{workspace_password}"
 
 for u in USERS.split(" "):
      configs = u.split(":")
-     log.info(configs)
      name = configs[0]
      uid = configs[1]
      gid = configs[2]
@@ -513,7 +525,7 @@ for u in USERS.split(" "):
      elif shell == "bash":
           shell_path = "/bin/bash"
      else:
-          log.info(f"invalid shell for user '{name}': '{shell}'")
+          log.warning(f"invalid shell for user '{name}': '{shell}'")
 
      users[name] = {
           'name': name,
@@ -551,11 +563,11 @@ for u, config in users.items():
      user_exists, home_exists, user_record = check_user(name)
 
      if not user_exists and not home_exists:
-          log.info(f"User and home does not exist, creating: '{name}'")
+          log.warning(f"User and home does not exist, creating: '{name}'")
           user_env = setup_user(config, system_env)
 
           exists = False      
-          run_user_services_config(name, user_env, exists)
+          run_user_services_config(name, user_env, exists, cli_opts)
 
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=False)
@@ -563,7 +575,7 @@ for u, config in users.items():
      elif user_exists and not home_exists:
           # create missing user's home
           user_env = os.environ.copy()
-          log.info(f"User exists '{name}' but home is missing")
+          log.warning(f"User exists '{name}' but home is missing")
           
           #@TODO: write function similar to setup_user that copies existing 
           # shadows info and init's shell
@@ -575,7 +587,7 @@ for u, config in users.items():
      elif not user_exists and home_exists:
           user_env = os.environ.copy()
           home = os.path.join("/home", name)
-          log.info(f"User does not exist but a home directory exists, creating: '{name}'")
+          log.warning(f"User does not exist but a home directory exists, creating: '{name}'")
 
           #@TODO: Impliment below when there's a way to backup/check against previous /etc/shadows file
           # move old home to backup
@@ -592,9 +604,9 @@ for u, config in users.items():
           # Configure services
           
           exists = True
-          run_user_services_config(name, user_env, exists)
+          run_user_services_config(name, user_env, exists, cli_opts)
           ssh_dir = os.path.join(config.get("dirs").get("home").get("path"), ".ssh")
-          log.info("setting correct permissions on '.ssh'")
+          log.warning("setting correct permissions on '.ssh'")
           func.recursive_chmod(ssh_dir, "600")
 
           # Set enviornments
@@ -605,13 +617,13 @@ for u, config in users.items():
           # All's peachy for new user
           # move old home to backup and create new user
           user_env = os.environ.copy()
-          log.info(f"User and home exists '{name}'")
+          log.warning(f"User and home exists '{name}'")
 
           exists = True
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=True)                    
           
      else:
-          log.info(f"User exists 'error'")
+          log.error(f"User exists: 'error'")
 
 

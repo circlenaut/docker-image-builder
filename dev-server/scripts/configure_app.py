@@ -28,10 +28,18 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
 if unknown:
-    log.info("Unknown arguments " + str(unknown))
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 ### Read system envs
 ENV_USER = os.getenv("WORKSPACE_USER", "coder")
@@ -73,8 +81,8 @@ app_dir = os.path.normpath(ENV_APP_ROOT_DIR)
 
 if not os.path.exists(app_dir): 
     os.makedirs(app_dir)
-    log.info(f"fixing permissions for '{ENV_USER}' on '{app_dir}'")
-    run(['sudo', '--preserve-env', 'chown', '-R', f'{ENV_USER}:users', apps_dir])
+    log.warning(f"fixing permissions for '{ENV_USER}' on '{app_dir}'")
+    func.recursive_chown(apps_dir, ENV_USER)
 
 ### Generate password hash
 password = ENV_APP_PASSWORD.encode()
@@ -102,8 +110,10 @@ config_json = json.dumps(config_file, indent = 4)
 with open(config_path, "w") as f: 
     f.write(config_json)
 
-log.info(f"{application} config:")
-log.info(call(["cat", config_path]))
+log.debug(f"{application} config: '{config_path}'")
+#log.debug(func.cat_file(config_path))
+#log.debug(config_json)
+log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))
 
 ### Create symlink to workspace
 link_path = os.path.join(workspace_dir, os.path.basename(app_dir))

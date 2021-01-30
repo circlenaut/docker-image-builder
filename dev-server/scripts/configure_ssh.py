@@ -20,6 +20,21 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+### Enable argument parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--settings', type=json.loads, help='Load script settings')
+
+args, unknown = parser.parse_known_args()
+if unknown:
+    log.error("Unknown arguments " + str(unknown))
+
+### Load arguments
+cli_opts = args.opts
+
+### Set log level
+verbosity = cli_opts.get("verbosity")
+log.setLevel(verbosity)
 
 ### Read system envs
 ENV_USER = os.getenv("USER", "coder")
