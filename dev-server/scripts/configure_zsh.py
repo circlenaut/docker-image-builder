@@ -422,7 +422,7 @@ if not os.path.exists(on_my_zsh_dir):
 
     ### Display config to console
     log.debug(f"On My ZSH config:")
-    log.debug(func.cat_file(on_my_zsh_config_path))
+    log.debug(func.capture_cmd_stdout(f'cat {on_my_zsh_config_path}', os.environ.copy()))
 
 else:
     log.warning("Oh-My-Zsh already installed")

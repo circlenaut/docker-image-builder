@@ -335,7 +335,5 @@ log.info(f"setting permissions on '{config_dir}' to '{ENV_USER}'")
 func.recursive_chown(config_dir, ENV_USER)
 
 log.debug(f"{application} config: '{config_path}'")
-#log.debug(func.cat_file(config_path))
-#log.debug(config_json)
 log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))
 

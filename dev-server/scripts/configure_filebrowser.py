@@ -102,6 +102,4 @@ with open(config_path, "w") as f:
     f.write(config_json)
 
 log.debug(f"{application} config: '{config_path}'")
-#log.debug(func.cat_file(config_path))
-#log.debug(config_json)
 log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))

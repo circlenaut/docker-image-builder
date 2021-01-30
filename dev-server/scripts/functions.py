@@ -69,10 +69,6 @@ def cat_file(path):
 
 def capture_cmd_stdout(cmd, environment):
     command = cmd.split(" ")
-    # Python 3.4+
-    #result = run(command, stdout=PIPE, env=environment)
-    #output = result.stdout.decode('utf-8')
-    # Python 3.7+
     output= run(command, capture_output=True, text=True, env=environment).stdout
     return output
 
