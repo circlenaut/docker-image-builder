@@ -7,19 +7,23 @@ import sys
 import re
 import typing
 import yaml
+import logging
 from yaml                    import CLoader
 from conda.api               import Solver
 from conda.exceptions        import ResolvePackageNotFound
 from conda.models.match_spec import MatchSpec
 
 ### Enable logging
-import logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
     level=logging.INFO, 
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+# Set log level
+verbosity = os.getenv("LOG_VERBOSITY", "INFO")
+log.setLevel(verbosity)
 
 SUPPORTED_CHANNELS = {"defaults", "nodefaults", "anaconda", "conda-forge"}
 SUPPORTED_EXTENSIONS = {

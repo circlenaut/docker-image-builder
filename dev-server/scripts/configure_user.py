@@ -299,7 +299,8 @@ def init_shell(config, environment):
      func.run_shell_installer_url(
           'https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh', 
           ['-b', '-u', '-p', conda_root], 
-          user_env
+          user_env,
+          verbosity
      )
 
      # fix permissions
@@ -322,7 +323,7 @@ def init_shell(config, environment):
      local_bin = os.path.join(home, ".local/bin")
      user_env['PATH'] += os.pathsep + local_bin
 
-     log.info(func.capture_cmd_stdout('env', user_env))
+     log.debug(func.capture_cmd_stdout('env', user_env))
      
      return user_env
 

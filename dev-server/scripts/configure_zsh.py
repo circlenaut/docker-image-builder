@@ -111,11 +111,12 @@ on_my_zsh_config_path = os.path.join(user_home, ".zshrc")
 
 if not os.path.exists(on_my_zsh_dir):
     log.info("Installing Oh-My-Zsh")
-
+    
     func.run_shell_installer_url(
         'https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh',
         ['--unattended'],
-        zsh_env
+        zsh_env,
+        verbosity
     )
 
     # Set options to load
@@ -381,7 +382,8 @@ if not os.path.exists(on_my_zsh_dir):
     #func.run_shell_installer_url(
     #    'https://get.sdkman.io ',
     #    [],
-    #    zsh_env
+    #    zsh_env,
+    #    verbosity
     #)
 
     run(
@@ -391,7 +393,7 @@ if not os.path.exists(on_my_zsh_dir):
 
     ### Display config to console
     log.debug(f"On My ZSH config:")
-    log.debug(func.capture_cmd_stdout(f'cat {on_my_zsh_config_path}', os.environ.copy()))
+    log.debug(func.capture_cmd_stdout(f'cat {on_my_zsh_config_path}', zsh_env))
 
 else:
     log.warning("Oh-My-Zsh already installed")

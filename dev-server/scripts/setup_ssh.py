@@ -49,10 +49,13 @@ root_group = "root"
 application = "ssh config"
 
 ### Set config and data paths
+
 config_dir = os.path.join("/etc", "ssh")
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
 
+### Create config template
+# set user access
 allow_users = [root_user]
 for u, config in cli_users.items():
     user_name = config.get("name")
@@ -61,6 +64,7 @@ for u, config in cli_users.items():
 s = ' '
 AllowUsers = s.join(allow_users)
 
+# match block
 match_block = {
     "127.0.0.0/24": {
         "match": {
@@ -112,7 +116,7 @@ match_block = {
     }
 }
 
-### Create config template
+# main config
 config_file = {
     "SyslogFacility": "AUTH",
     "LogLevel": "INFO",

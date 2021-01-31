@@ -20,6 +20,8 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+### Define functions
+
 def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False):
     if ignore_if_set and os.getenv(env_variable, None):
         # if it is already set, do not set it to the new value
@@ -111,9 +113,10 @@ def get_url_suffix(url):
     base = os.path.basename(http.path)
     return base
 
-def run_shell_installer_url(url, args, environment):
-    def on_terminate(proc):
-        log.info("process {} terminated".format(proc))
+def run_shell_installer_url(url, args, environment, verbosity):
+    log.setLevel(verbosity)
+    def on_terminate(proc, level=verbosity):
+        log.debug("process {} terminated".format(proc))
     if check_valid_url(url) and url_active(url):
         log.info(f"installing '{url}' with arguments: '{args}''")
         filename = get_url_suffix(url)

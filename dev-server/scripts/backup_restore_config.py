@@ -13,7 +13,7 @@ import time
 import json
 from crontab import CronTab, CronSlices
 
-# Enable logging
+### Enable logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
     level=logging.INFO, 

@@ -12,9 +12,22 @@ import crypt
 import codecs
 import typing
 import spwd
+import logging
 from pathlib              import Path
 from getpass              import getpass
 from subprocess           import run, call
+
+### Enable logging
+logging.basicConfig(
+    format='%(asctime)s [%(levelname)s] %(message)s', 
+    level=logging.INFO, 
+    stream=sys.stdout)
+
+log = logging.getLogger(__name__)
+
+# Set log level
+verbosity = os.getenv("LOG_VERBOSITY", "INFO")
+log.setLevel(verbosity)
 
 class PwdRecord(object):
 
