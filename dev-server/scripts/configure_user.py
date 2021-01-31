@@ -24,24 +24,28 @@ import functions as func
 
 def check_user(user_name):
      user_exists = False
-     record = dict()
-     home = os.path.join("/home", user_name)
+     user_record = dict()
+     user_home = os.path.join("/home", user_name)
      user_records = PwdFile().toJSON().get("pwdRecords")
 
-     if os.path.exists(home):
+     if os.path.exists(user_home):
           home_exists = True
      else:
           home_exists = False
 
      for user in user_records:
-          if user.get("user_name") == user_name:
-               record = json.dumps(user, indent = 4)
+          record = json.dumps(user, indent = 4)
+          name = user.get("userName")
+          #log.debug(record)
+          #log.debug(name)
+          if name == user_name:
+               user_record = record
                user_exists = True
                break
           else:
                user_exists = False
 
-     return user_exists, home_exists, record
+     return user_exists, home_exists, user_record
 
 def create_user(config):
      user_name = config.get("name")
@@ -222,7 +226,7 @@ def check_old_pass(user_name, password):
           return 'error'
 
 def change_pass(user_name, old_password, new_password):
-     user_exists, home_exists, record = check_user(user_name)
+     user_exists, home_exists, user_record = check_user(user_name)
      if user_exists:
           current_password_hash = spwd.getspnam(user_name).sp_pwdp
           log.info(f"current password hash: '{current_password_hash}'")
@@ -253,7 +257,7 @@ def change_pass(user_name, old_password, new_password):
           log.error("unknown error")
 
 def change_user_shell(user_name, shell):
-     user_exists, home_exists, record = check_user(user_name)
+     user_exists, home_exists, user_record = check_user(user_name)
 
      if user_exists:
           log.info(f"'{user_name}' shell changed to: '{shell}'")
@@ -338,7 +342,7 @@ def setup_user(config, environment, args):
      set_user_paths(config)
      
      setup_ssh(user_name, user_group, workspace_env)
-     change_pass(user_group, "password", user_password)
+     change_pass(user_name, "password", user_password)
      change_user_shell(user_name, user_shell)
      
      user_env = init_shell(config, workspace_env)
@@ -346,13 +350,11 @@ def setup_user(config, environment, args):
      
      set_user_paths(config)
      user_exists, home_exists, user_record = check_user(name)
+     log.debug("user record:")
      log.debug(user_record)
 
      # configure system services
      #services = ["ssh", "cron"]
-
-     log.info(func.capture_cmd_stdout('env', user_env))
-
      services = ["ssh"]
      for serv in services:
           log.info(f"configuring system service: '{serv}'")
@@ -575,14 +577,29 @@ for u in USERS.split(" "):
           }
      }
 
+### Setup SSH
+cli_opts_json = json.dumps(cli_opts)
+cli_users_json = json.dumps(users)
+workspace_env_json = json.dumps(workspace_env)
+run(
+     ['python3', f'/scripts/setup_ssh.py', 
+     '--opts', cli_opts_json, 
+     '--env', workspace_env_json,
+     '--users', cli_users_json],
+     env=workspace_env
+)
+
+### Configure users
 for u, config in users.items():
-     name = config.get("name")
+     user_name = config.get("name")
      workspace_auth_password = config.get("password")
-     user_exists, home_exists, user_record = check_user(name)
+     user_exists, home_exists, user_record = check_user(user_name)
 
      if not user_exists and not home_exists:
-          log.warning(f"User and home does not exist, creating: '{name}'")
+          log.warning(f"User and home does not exist, creating: '{user_name}'")
           user_env = setup_user(config, workspace_env, cli_opts)
+          user_exists, home_exists, user_record = check_user(user_name)
+          log.info(user_record)
 
           exists = False      
           run_user_services_config(config, user_env, exists, cli_opts)
@@ -593,7 +610,7 @@ for u, config in users.items():
      elif user_exists and not home_exists:
           # create missing user's home
           user_env = os.environ.copy()
-          log.warning(f"User exists '{name}' but home is missing")
+          log.warning(f"User exists '{user_name}' but home is missing")
           
           #@TODO: write function similar to setup_user that copies existing 
           # shadows info and init's shell
@@ -604,13 +621,13 @@ for u, config in users.items():
 
      elif not user_exists and home_exists:
           user_env = os.environ.copy()
-          home = os.path.join("/home", name)
-          log.warning(f"User does not exist but a home directory exists, creating: '{name}'")
+          home = os.path.join("/home", user_name)
+          log.warning(f"User does not exist but a home directory exists, creating: '{user_name}'")
 
           #@TODO: Impliment below when there's a way to backup/check against previous /etc/shadows file
           # move old home to backup
-          #existing_home = os.path.join("/home", name)
-          #backup_home = os.path.join("/home", f"{name}_previous")
+          #existing_home = os.path.join("/home", user_name)
+          #backup_home = os.path.join("/home", f"{user_name}_previous")
           #shutil.move(existing_home, backup_home) 
 
           # Create user
@@ -635,7 +652,7 @@ for u, config in users.items():
           # All's peachy for new user
           # move old home to backup and create new user
           user_env = os.environ.copy()
-          log.warning(f"User and home exists '{name}'")
+          log.warning(f"User and home exists '{user_name}'")
 
           exists = True
           for env, value in user_env.items():

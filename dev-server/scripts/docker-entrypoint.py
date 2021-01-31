@@ -24,8 +24,8 @@ log.info("Starting...")
 
 ### Read or set docker default envs
 docker_env = {
-    'WORKSPACE_USER': os.getenv("WORKSPACE_USER", "coder"),
-    'WORKSPACE_GROUP': os.getenv("WORKSPACE_GROUP", "users"),
+    'WORKSPACE_USER': os.getenv("WORKSPACE_AUTH_USER", "coder"),
+    'WORKSPACE_GROUP': os.getenv("WORKSPACE_AUTH_GROUP", "users"),
     'WORKSPACE_USER_PASSWORD': os.getenv("WORKSPACE_AUTH_PASSWORD", "password"),
     'RESOURCES_PATH': os.getenv("RESOURCES_PATH", "/resources"),
     'WORKSPACE_HOME': os.getenv("WORKSPACE_HOME", "/workspace"),

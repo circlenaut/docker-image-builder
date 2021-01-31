@@ -25,50 +25,8 @@ RUN \
     # Cleanup
     && clean-layer.sh
 
-### Create a new user
-#ARG UNAME=coder 
-#ARG UID=1000
-#ARG GID=100
-#RUN \
-#    groupadd --gid $GID -o $UNAME \
-#    && useradd \
-#      --uid $UID \
-#      --gid $GID \
-#      --create-home \
-#      --shell /bin/bash \ 
-#      $UNAME \
-#    && passwd -d $UNAME \
-#    && adduser $UNAME sudo
-#RUN \
-#    echo "$UNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$UNAME \
-#    && chmod 0440 /etc/sudoers.d/$UNAME
-
-#WORKDIR /home/$UNAME
-
-### Setup SSH
-#RUN \
-#    mkdir -p /home/$UNAME/.ssh/ \
-#    # create empty config file if not exists
-#    touch /home/$UNAME/.ssh/config \
-#    && sudo chown -R $UNAME:users /home/$UNAME/.ssh \
-#    && chmod 700 /home/$UNAME/.ssh \
-#    && printenv >> /home/$UNAME/.ssh/environment
-
 ### Fix logging
 RUN sed -i '/imklog/s/^/#/' /etc/rsyslog.conf
-
-### Set user permissions
-#RUN \
-#    mkdir $WORKSPACE_HOME && sudo chmod a+rwx $WORKSPACE_HOME \
-#    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
-#    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
-#    && chown -R $UNAME:$UNAME $DATA_PATH
-
-#RUN chown -R $UNAME:$UNAME /opt
-#RUN \ 
-#    cp -r /root/.bashrc /home/$UNAME \
-#    && cp -r /root/.conda /home/$UNAME \
-#    && chown -R $UNAME:$UNAME /home/$UNAME
 
 ### Copy some configuration files
 # copy system scripts
@@ -76,39 +34,23 @@ COPY scripts/__init__.py $SCRIPTS_PATH
 COPY scripts/docker-entrypoint.py /
 COPY scripts/functions.py $SCRIPTS_PATH
 COPY scripts/run_workspace.py $SCRIPTS_PATH
+COPY scripts/setup_ssh.py $SCRIPTS_PATH
 COPY scripts/configure_user.py $SCRIPTS_PATH
-COPY scripts/configure_ssh.py $SCRIPTS_PATH
 COPY scripts/configure_cron.py $SCRIPTS_PATH
 COPY scripts/backup_restore_config.py $SCRIPTS_PATH
 # copy supervisor configs
 COPY configs/supervisor/conf.d /etc/supervisor/conf.d/
 COPY configs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
-# copy ssh config
-COPY configs/ssh/ssh_config configs/ssh/sshd_config  /etc/ssh/
 # copy custom libraries
 COPY scripts/conda_parser.py $SCRIPTS_PATH
 COPY scripts/users_mod.py $SCRIPTS_PATH
 # copy user scripts
+COPY scripts/configure_ssh.py $SCRIPTS_PATH
 COPY scripts/configure_zsh.py $SCRIPTS_PATH
 COPY scripts/configure_vscode.py $SCRIPTS_PATH
 COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
 COPY scripts/configure_caddy.py $SCRIPTS_PATH
 COPY scripts/configure_app.py $SCRIPTS_PATH
 COPY scripts/setup_workspace.py $SCRIPTS_PATH
-
-### Fix permissions and cleanup
-#RUN \
-#    chmod -R a+rwx $RESOURCES_PATH \
-#    && chmod -R a+rwx $WORKSPACE_HOME \
-#    && chmod -R a+rwx $APPS_PATH \
-#    && chmod -R a+rw $DATA_PATH \
-#    && echo 'cd '$WORKSPACE_HOME >> /home/$UNAME/.bashrc \
-#    && chown -R $UNAME:$UNAME $RESOURCES_PATH \
-#    && chown -R $UNAME:$UNAME $WORKSPACE_HOME \
-#    && chown -R $UNAME:$UNAME $APPS_PATH \
-#    && chown -R $UNAME:$UNAME $DATA_PATH \
-#    && chown -R $UNAME:$UNAME /home/$UNAME
-
-#USER $UNAME
 
 ENTRYPOINT ["python3", "/docker-entrypoint.py"]

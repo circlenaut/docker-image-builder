@@ -107,7 +107,7 @@ services:
       PROXY_ENCODINGS_ZSTD: "true"
       PROXY_TEMPLATES: "true"
       WORKSPACE_SSL_ENABLED: "false"
-      WORKSPACE_AUTH_USER: "coder"
+      WORKSPACE_AUTH_USER: "test"
       WORKSPACE_AUTH_PASSWORD: "${POD2_AUTH_PASSWORD:-password}"
       #FB_BASE_URL: "/data"
       #FB_PORT: "8055"
