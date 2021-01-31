@@ -23,6 +23,7 @@ RUN \
         apt-utils \
         apt-transport-https \
         software-properties-common \
+        dialog \
         gcc \
         python3.8 \
     # Cleanup

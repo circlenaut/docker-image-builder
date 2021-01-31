@@ -25,6 +25,8 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--env', type=json.loads, help='Set script environment')
+parser.add_argument('--user', type=json.loads, help='Load user settings')
 parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
@@ -33,32 +35,32 @@ if unknown:
 
 ### Load arguments
 cli_opts = args.opts
+cli_env = args.env
+cli_user = args.user
+cli_settings = args.settings
 
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
 
-#@TODO: Turn this into a dictionary/function
-### Read system envs
-ENV_USER = os.getenv("WORKSPACE_USER", "coder")
-ENV_HOME = os.path.join("/home", ENV_USER)
-ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
-ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
-ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
-ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
-ENV_PROXY_BASE_URL = os.getenv("PROXY_BASE_URL", "/")
-ENV_CADDY_VIRTUAL_BASE_URL = os.getenv("VIRTUAL_BASE_URL", "/")
+### Get envs
+proxy_base_url = cli_env.get("PROXY_BASE_URL")
+caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
+fb_port = cli_env.get("FB_PORT")
+fb_base_url = cli_env.get("FB_BASE_URL")
+fb_root_dir = cli_env.get("FB_ROOT_DIR")
 
-ENV_FB_PORT = os.getenv("FB_PORT", "8055")
-ENV_FB_BASE_URL = os.getenv("FB_BASE_URL", "/data")
-ENV_FB_ROOT_DIR = os.getenv("FB_ROOT_DIR", "/workspace")
+### Get user settings
+user_name = cli_user.get("name")
+user_group = cli_user.get("group")
+user_password = cli_user.get("password")
+user_home = cli_user.get("dirs").get("home").get("path")
 
 ### Clean up envs
 application = "filebrowser"
-fb_port = int(ENV_FB_PORT)
-proxy_base_url = func.clean_url(ENV_PROXY_BASE_URL)
-host_base_url = func.clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
-fb_base_url = func.clean_url(ENV_FB_BASE_URL)
+proxy_base_url = func.clean_url(proxy_base_url)
+host_base_url = func.clean_url(caddy_virtual_base_url)
+fb_base_url = func.clean_url(fb_base_url)
 
 ### Set final base url
 system_base_url = urljoin(host_base_url, proxy_base_url)
@@ -66,21 +68,18 @@ full_base_url = urljoin(system_base_url, fb_base_url)
 log.info(f"{application} base URL: '{full_base_url}'")
 
 ### Set config and data paths
-config_dir = os.path.join(ENV_HOME, ".config", application)
+config_dir = os.path.join(user_home, ".config", application)
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
 
-workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
-data_dir = os.path.normpath(ENV_DATA_PATH)
-db_path = os.path.join(ENV_HOME, f"{application}.db")
+db_path = os.path.join(user_home, f"{application}.db")
 
 ### Generate password hash
-password = ENV_WORKSPACE_AUTH_PASSWORD.encode()
+password = user_password.encode()
 salt = bcrypt.gensalt()
 hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
-log.info(f"{application} password: '{ENV_WORKSPACE_AUTH_PASSWORD}'")
+log.info(f"{application} password: '{user_password}'")
 log.info(f"{application} hashed password: '{hashed_password}'")
-os.environ['HASHED_PASSWORD'] = hashed_password
 
 ### Create config template
 config_file = {
@@ -89,8 +88,8 @@ config_file = {
     "address": "",
     "log": "stdout",
     "database": db_path,
-    "root": workspace_dir,
-    "username": ENV_USER,
+    "root": fb_root_dir,
+    "username": user_name,
     "password": hashed_password
 }    
     
@@ -101,5 +100,10 @@ config_json = json.dumps(config_file, indent = 4)
 with open(config_path, "w") as f: 
     f.write(config_json)
 
+# fix permissions
+log.info(f"setting permissions on '{config_dir}' to '{user_name}:{user_group}'")
+func.recursive_chown(config_dir, user_name, user_group)
+
+### Display final config
 log.debug(f"{application} config: '{config_path}'")
-log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))
+log.debug(func.capture_cmd_stdout(f'cat {config_path}', cli_env))

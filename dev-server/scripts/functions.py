@@ -18,6 +18,8 @@ logging.basicConfig(
     level=logging.INFO, 
     stream=sys.stdout)
 
+log = logging.getLogger(__name__)
+
 def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False):
     if ignore_if_set and os.getenv(env_variable, None):
         # if it is already set, do not set it to the new value
@@ -26,20 +28,20 @@ def set_env_variable(env_variable: str, value: str, ignore_if_set: bool = False)
     run("export " + env_variable + '="' + value + '"', shell=True)
     os.environ[env_variable] = value
 
-def chown(path, owner):
-     shutil.chown(path, owner)
+def chown(path, user, group):
+     shutil.chown(path, user, group)
 
 def chmod(path, mode):
      os.chmod(path, int(mode, base=8))
 
-def recursive_chown(path, owner):
+def recursive_chown(path, user, group):
      for dirpath, dirnames, filenames in os.walk(path):
-          chown(dirpath, owner)
+          chown(dirpath, user, group)
           for filename in filenames:
                file_path = os.path.join(dirpath, filename)
                # Don't set permissions on symlinks
                if not os.path.islink(file_path):
-                    chown(file_path, owner)
+                    chown(file_path, user, group)
 
 def recursive_chmod(path, mode):
      for dirpath, dirnames, filenames in os.walk(path):

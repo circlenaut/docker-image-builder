@@ -10,6 +10,9 @@ import psutil
 import re
 import logging
 import requests
+import argparse
+import json
+import pip_api
 from urllib.parse import urlparse
 from subprocess   import run, call, Popen
 from users_mod    import PwdFile
@@ -67,6 +70,8 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--env', type=json.loads, help='Set script environment')
+parser.add_argument('--user', type=json.loads, help='Load user settings')
 parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
@@ -75,63 +80,34 @@ if unknown:
 
 ### Load arguments
 cli_opts = args.opts
+cli_env = args.env
+cli_user = args.user
+cli_settings = args.settings
 
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
 
-### Read system envs
-ENV_USER = os.getenv("USER", "coder")
+### Get envs
+zsh_prompt = cli_env.get("ZSH_PROMPT")
+zsh_theme = cli_env.get("ZSH_THEME")
+zsh_plugins = cli_env.get("ZSH_PLUGINS")
 
-### Read docker envs
-ENV_WORKSPACE_USER = os.getenv("WORKSPACE_USER", "coder")
-ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
-ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
-ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
-ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
-ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
-ENV_ZSH_PROMPT = os.getenv("ZSH_PROMPT", "none")
-ENV_ZSH_THEME = os.getenv("ZSH_THEME", "spaceship")
-ENV_ZSH_PLUGINS = os.getenv("ZSH_PLUGINS", "all")
+# Get user settings
+user_name = cli_user.get("name")
+user_shell = cli_user.get("shell")
+user_home = cli_user.get("dirs").get("home").get("path")
+workspace_dir = cli_user.get("dirs").get("workspace").get("path")
 
-### Clean up envs
-user = ENV_WORKSPACE_USER
-home = os.path.join("/home", ENV_WORKSPACE_USER)
+### Set zsh env
+zsh_env = cli_env
 
-### Set config and data paths
-workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
-resources_dir = os.path.normpath(ENV_RESOURCES_PATH)
-
-### Set zsh envs
-zsh_env = os.environ.copy()
-zsh_env['USER'] = user
-zsh_env['HOME'] = home
-zsh_env['WORKSPACE_USER'] = user
-zsh_env['WORKSPACE_USER_HOME'] = home
-
-
-### Set Path
-# conda
-conda_root = os.path.join(home, ".conda")
-conda_bin_path = os.path.join(conda_root, "bin")
-conda_bin_dir = os.path.join(conda_root, 'condabin')
-conda_exe = os.path.join(conda_root, 'condabin', 'conda')
-#zsh_env['PATH'] += os.pathsep + conda_bin_path
-#zsh_env['PATH'] += os.pathsep + conda_bin_dir
-
-# pyenv dir
-pyenv_root = f"{resources_dir}/.pyenv"
-#zsh_env['PATH'] += os.pathsep + os.path.join(pyenv_root, "shims")
-#zsh_env['PATH'] += os.pathsep + os.path.join(pyenv_root, "bin")
-
-# local
-local_bin = os.path.join(home, ".local/bin")
-#zsh_env['PATH'] += os.pathsep + local_bin
+### Set system path
 system_path = zsh_env.get("PATH")
 
 ### Install Oh-My-Zsh
-on_my_zsh_dir = os.path.join(home, ".oh-my-zsh")
-on_my_zsh_config_path = os.path.join(home, ".zshrc")
+on_my_zsh_dir = os.path.join(user_home, ".oh-my-zsh")
+on_my_zsh_config_path = os.path.join(user_home, ".zshrc")
 
 if not os.path.exists(on_my_zsh_dir):
     log.info("Installing Oh-My-Zsh")
@@ -185,9 +161,6 @@ if not os.path.exists(on_my_zsh_dir):
         'autoload -U bashcompinit',
         'bashcompinit',
         'eval "$(register-python-argcomplete pipx)"',
-        f'export PATH="{conda_bin_dir}:$PATH"',
-        f'export PATH="{conda_bin_path}:$PATH"',
-        f'export PATH="{local_bin}:$PATH"',
         f'cd "{workspace_dir}"',
     ]
 
@@ -217,7 +190,7 @@ if not os.path.exists(on_my_zsh_dir):
             'name': 'sobole',
             'config': [
                 'SOBOLE_THEME_MODE="dark"',
-                f'SOBOLE_DEFAULT_USER="{ENV_WORKSPACE_USER}"',
+                f'SOBOLE_DEFAULT_USER="{user_name}"',
                 'SOBOLE_DONOTTOUCH_HIGHLIGHTING="false"',
             ]
         },
@@ -232,7 +205,7 @@ if not os.path.exists(on_my_zsh_dir):
         ]
 
     # Setup plugins
-    plugins_path = os.path.join(home, ".oh-my-zsh/custom/plugins")
+    plugins_path = os.path.join(user_home, ".oh-my-zsh/custom/plugins")
     if not os.path.exists(plugins_path): os.makedirs(plugins_path)
 
     for index, plugin in enumerate(plugin_list):
@@ -249,7 +222,7 @@ if not os.path.exists(on_my_zsh_dir):
             plugin_list[index] = plugin_name
     
     # Setup theme
-    themes_path = os.path.join(home, ".oh-my-zsh/custom/themes")
+    themes_path = os.path.join(user_home, ".oh-my-zsh/custom/themes")
     if not os.path.exists(themes_path): os.makedirs(themes_path)
 
     theme_name = str()
@@ -277,7 +250,7 @@ if not os.path.exists(on_my_zsh_dir):
                 log.error(f"repo down, skipping: '{theme_url}'")
 
     # Setup prompt
-    prompts_path = os.path.join(home, ".oh-my-zsh/custom/prompts")
+    prompts_path = os.path.join(user_home, ".oh-my-zsh/custom/prompts")
     if not os.path.exists(prompts_path): os.makedirs(prompts_path)
     
     prompt_name = str()
@@ -309,8 +282,8 @@ if not os.path.exists(on_my_zsh_dir):
         ]
 
     # Run validation checks
-    set_prompt = ENV_ZSH_PROMPT
-    set_theme = ENV_ZSH_THEME
+    set_prompt = zsh_prompt
+    set_theme = zsh_theme
     default_theme = "robbyrussell"
         
     if set_prompt in prompt_names or set_prompt == "none":
@@ -347,51 +320,53 @@ if not os.path.exists(on_my_zsh_dir):
 
     # Write config file
     write_zsh_config(
-        home,
+        user_home,
         prompt.get(set_prompt), 
         theme.get(set_theme),
         plugin_list, 
         additional_args, 
     )
 
-
-    ### Setup Conda
-    #@TODO: See why conda's not loading to PATH
-    # Init Conda
-    run(
-        [conda_exe, 'init', 'zsh'],
-        env=zsh_env
-    )
+    # Init conda
+    log.info(f"initializing conda on '{user_shell}'")
+    run(['conda', 'init', 'zsh'], env=zsh_env)
+    
     # Install conda base
     run(
-        [conda_exe, 'install', '-c', 'conda-forge', '--quiet', '--yes',
+        ['conda', 'install', '-c', 'conda-forge', '--quiet', '--yes',
             'python=3.8',
             'pip',
             'pyyaml',
             'yaml'],
         env=zsh_env
     )
-    # disable auto load on login
+    # Disable auto conda activation
+    log.info(f"disabling conda auto activation for '{user_shell}'")
     run(
-        [conda_exe, 'config', '--set', 'auto_activate_base', 'false'],
+        ['conda', 'config', '--set', 'auto_activate_base', 'false'],
         env=zsh_env
     )
     
     ### Configure Git
+    log.info(f"setting git config for '{user_name}': core.fileMode=false")
     run(
         ['git', 'config', '--global', 'core.fileMode', 'false'],
         env=zsh_env
     )
+    log.info(f"setting git config for '{user_name}': http.sslVerify=false")
     run(
         ['git', 'config', '--global', 'http.sslVerify', 'false'],
         env=zsh_env
     )
+    log.info(f"setting git config for '{user_name}': credential.helper='cache --timeout=31540000'")
     run(
         ['git', 'config', '--global', 'credential.helper', '"cache --timeout=31540000"'],
         env=zsh_env
     )
 
     ### Install pip packages
+#    for app in pip_api.installed_distributions():
+#        log.error(app.name)
     run(
         ['pip3', 'install',
             'Pygments',
@@ -413,12 +388,6 @@ if not os.path.exists(on_my_zsh_dir):
         'curl -s https://get.sdkman.io | bash',
         shell=True,
     )
-
-    ### Set permissions
-    #log.info(f"setting permissions on '{on_my_zsh_dir}' to '{ENV_WORKSPACE_USER}'")
-    #func.recursive_chown(on_my_zsh_dir, ENV_WORKSPACE_USER)
-    #log.info(f"setting permissions on '{on_my_zsh_config_path}' to '{ENV_WORKSPACE_USER}'")
-    #func.recursive_chown(on_my_zsh_config_path, ENV_WORKSPACE_USER)
 
     ### Display config to console
     log.debug(f"On My ZSH config:")

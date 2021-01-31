@@ -23,9 +23,9 @@ log = logging.getLogger(__name__)
 
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
+parser.add_argument('--opts', type=json.loads, help='Set script arguments')
 parser.add_argument('mode', type=str, default="backup", help='Either backup or restore the workspace configuration.',
                     choices=["backup", "restore", "schedule"])
-parser.add_argument('--opts', type=json.loads, help='Set script arguments')
 
 args, unknown = parser.parse_known_args()
 if unknown:

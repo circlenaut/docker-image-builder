@@ -7,12 +7,14 @@
 Configure ssh service
 """
 
-from subprocess import run
 import os
 import sys
+import logging
+import argparse
+import json
+from subprocess import run
 
 # Enable logging
-import logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
     level=logging.INFO, 
@@ -23,6 +25,8 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--env', type=json.loads, help='Set script environment')
+parser.add_argument('--user', type=json.loads, help='Load user settings')
 parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
@@ -31,6 +35,8 @@ if unknown:
 
 ### Load arguments
 cli_opts = args.opts
+cli_env = args.env
+cli_user = args.user
 
 ### Set log level
 verbosity = cli_opts.get("verbosity")
@@ -42,6 +48,7 @@ ENV_HOME = os.path.join("/home", ENV_USER)
 
 ### Read docker envs
 ENV_WORKSPACE_USER = os.getenv("WORKSPACE_USER", "coder")
+ENV_WORKSPACE_GROUP = os.getenv("WORKSPACE_GROUP", "users")
 ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
 ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
 ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")

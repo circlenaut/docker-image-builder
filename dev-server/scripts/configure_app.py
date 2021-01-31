@@ -28,6 +28,8 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--env', type=json.loads, help='Set script environment')
+parser.add_argument('--user', type=json.loads, help='Load user settings')
 parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
@@ -36,33 +38,41 @@ if unknown:
 
 ### Load arguments
 cli_opts = args.opts
+cli_env = args.env
+cli_user = args.user
+cli_settings = args.settings
 
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
 
-### Read system envs
-ENV_USER = os.getenv("WORKSPACE_USER", "coder")
-ENV_HOME = os.path.join("/home", ENV_USER)
-ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
-ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
-ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
-ENV_WORKSPACE_AUTH_PASSWORD =  os.getenv("WORKSPACE_AUTH_PASSWORD", "password")
-ENV_PROXY_BASE_URL = os.getenv("PROXY_BASE_URL", "/")
-ENV_CADDY_VIRTUAL_BASE_URL = os.getenv("VIRTUAL_BASE_URL", "/")
+### Get envs
+proxy_base_url = cli_env.get("PROXY_BASE_URL")
+caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
+app_bind_addr = cli_env.get("APP_BIND_ADDR")
+app_base_url = cli_env.get("APP_BASE_URL")
+app_user = cli_env.get("APP_USER")
+app_password = cli_env.get("APP_PASSWORD")
 
-ENV_APPS_PATH = os.getenv("APPS_PATH", "/apps")
-ENV_APP_USER =  os.getenv("APP_USER", "admin")
-ENV_APP_PASSWORD =  os.getenv("APP_PASSWORD", "password")
-ENV_APP_ROOT_DIR = os.getenv("APP_ROOT_DIR", "/apps/app")
-ENV_APP_BIND_ADDR = os.getenv("APP_BIND_ADDR", "0.0.0.0:8080")
-ENV_APP_BASE_URL = os.getenv("VSCODE_BASE_URL", "/app")
+### Get user settings
+user_name = cli_user.get("name")
+user_group = cli_user.get("group")
+user_password = cli_user.get("password")
+user_home = cli_user.get("dirs").get("home").get("path")
+
+### Clean up envs
+application = "vscode"
+proxy_base_url = func.clean_url(proxy_base_url)
+host_base_url = func.clean_url(caddy_virtual_base_url)
+app_base_url = func.clean_url(app_base_url)
+
+### Set final base url
+system_base_url = urljoin(host_base_url, proxy_base_url)
+full_base_url = urljoin(system_base_url, app_base_url)
+log.info(f"{application} base URL: '{full_base_url}'")
 
 ### Clean up envs
 application = "app"
-proxy_base_url = func.clean_url(ENV_PROXY_BASE_URL)
-host_base_url = func.clean_url(ENV_CADDY_VIRTUAL_BASE_URL)
-app_base_url = func.clean_url(ENV_APP_BASE_URL )
 
 ### Set final base url
 system_base_url = urljoin(host_base_url, proxy_base_url)
@@ -70,35 +80,34 @@ full_base_url = urljoin(system_base_url, app_base_url)
 log.info(f"{application} base URL: '{full_base_url}'")
 
 ### Set config and data paths
-config_dir = os.path.join(ENV_HOME, ".config", application)
+config_dir = os.path.join(user_home, ".config", application)
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
 
-workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
-apps_dir = os.path.normpath(ENV_APPS_PATH)
-data_dir = os.path.normpath(ENV_DATA_PATH)
-app_dir = os.path.normpath(ENV_APP_ROOT_DIR)
+workspace_dir = os.path.normpath(cli_user.get("dirs").get("workspace").get("path"))
+data_dir = os.path.normpath(cli_user.get("dirs").get("data").get("path"))
+apps_dir = os.path.normpath(cli_user.get("dirs").get("apps").get("path"))
+app_dir = os.path.normpath(cli_user.get("dirs").get("app").get("path"))
 
 if not os.path.exists(app_dir): 
     os.makedirs(app_dir)
-    log.warning(f"fixing permissions for '{ENV_USER}' on '{app_dir}'")
-    func.recursive_chown(apps_dir, ENV_USER)
+    log.warning(f"fixing permissions for '{user_name}' on '{app_dir}'")
+    func.recursive_chown(apps_dir, user_name, user_group)
 
 ### Generate password hash
-password = ENV_APP_PASSWORD.encode()
+password = app_password.encode()
 salt = bcrypt.gensalt()
 hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
-log.info(f"{application} password: '{ENV_APP_PASSWORD}'")
+log.info(f"{application} password: '{app_password}'")
 log.info(f"{application} hashed password: '{hashed_password}'")
-os.environ['HASHED_PASSWORD'] = hashed_password
 
 ### Create config template
 config_file = {
-    "admin": ENV_APP_USER,
+    "admin": app_user,
     "logging": {},
     "name": application,
     "host": "localhost",
-    "port": ENV_APP_BIND_ADDR.split(":",1)[1],
+    "port": app_bind_addr.split(":",1)[1],
     "proto": "http",
     "base_url": full_base_url,
 }
@@ -110,11 +119,16 @@ config_json = json.dumps(config_file, indent = 4)
 with open(config_path, "w") as f: 
     f.write(config_json)
 
-log.debug(f"{application} config: '{config_path}'")
-log.debug(func.capture_cmd_stdout(f'cat {config_path}', os.environ.copy()))
+# fix permissions
+log.info(f"setting permissions on '{config_dir}' to '{user_name}:{user_group}'")
+func.recursive_chown(config_dir, user_name, user_group)
 
-### Create symlink to workspace
+# Create symlink to workspace
 link_path = os.path.join(workspace_dir, os.path.basename(app_dir))
 if os.path.exists(app_dir) and not os.path.exists(link_path):
     log.info(f"symlinking '{app_dir}'' to '{link_path}'")
     os.symlink(app_dir, link_path)
+
+### Display final config
+log.debug(f"{application} config: '{config_path}'")
+log.debug(func.capture_cmd_stdout(f'cat {config_path}', cli_env))
