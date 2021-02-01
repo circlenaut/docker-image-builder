@@ -30,12 +30,14 @@ docker_env = {
     'RESOURCES_PATH': os.getenv("RESOURCES_PATH", "/resources"),
     'WORKSPACE_HOME': os.getenv("WORKSPACE_HOME", "/workspace"),
     'LOG_VERBOSITY': os.getenv("LOG_VERBOSITY", "INFO"),
+    'CONFIG_BACKUP_ENABLED': os.getenv("CONFIG_BACKUP_ENABLED", "true"),
     'APPS_PATH': os.getenv("APPS_PATH", "/apps"),
     'DATA_PATH': os.getenv("DATA_PATH", "/data"),
     'PROXY_BASE_URL': os.getenv("PROXY_BASE_URL", "/"),
     'ZSH_PROMPT': os.getenv("ZSH_PROMPT", "none"),
     'ZSH_THEME': os.getenv("ZSH_THEME", "spaceship"), 
-    'ZSH_PLUGINS': os.getenv("ZSH_PLUGINS", "all"),   
+    'ZSH_PLUGINS': os.getenv("ZSH_PLUGINS", "all"),
+    'CONDA_ENV_PATH': os.getenv("CONDA_ENV_PATH", ""), 
     'CADDY_VIRTUAL_PORT': os.getenv("VIRTUAL_PORT", "80"),
     'CADDY_VIRTUAL_HOST': os.getenv("VIRTUAL_HOST", ""),
     'CADDY_VIRTUAL_BIND_NET': os.getenv("VIRTUAL_BIND_NET", "proxy"),
@@ -156,30 +158,30 @@ if ENV_MAX_NUM_THREADS:
     set_env_variable("TBB_NUM_THREADS", ENV_MAX_NUM_THREADS, ignore_if_set=True)  # TBB
     # GOTO_NUM_THREADS
 
+### Set container environment
+# Get system env and display
 system_env = os.environ.copy()
 log.debug("System Environments:")
 log.debug(func.capture_cmd_stdout('env', system_env))
 
+# Display docker env
 log.debug("Docker Environments:")
 log.debug(func.capture_cmd_stdout('env', docker_env))
 
-### Run user config restoration
-action = "restore"
-log.info(f"backup script: '{action}'")
-run(['sudo', '--preserve-env', 'python3', '/scripts/backup_restore_config.py', '--opts', opts_json, action])
-
+# Merge system, docker env as workspace env and display
 workspace_env = func.merge_two_dicts(system_env, docker_env)
 log.debug("Workspace Environment") 
 log.debug(func.capture_cmd_stdout('env', workspace_env))
 
+# Format workspace env as json for passage into scripts
 workspace_env_json = json.dumps(workspace_env)
 
-### configure user
+### Configure user
 log.info(f"configuring user")
 run(
     ['python3', f"/scripts/configure_user.py", 
-    '--opts', opts_json,
-    '--env', workspace_env_json], 
+        '--opts', opts_json,
+        '--env', workspace_env_json], 
     env=workspace_env
 )
 
@@ -193,7 +195,8 @@ workspace_env['WORKSPACE_USER_HOME'] = home
 ### Start workspace
 sys.exit(
     run(
-        ['python3', '/scripts/run_workspace.py', '--opts', opts_json],
+        ['python3', '/scripts/run_workspace.py', 
+            '--opts', opts_json],
         env=workspace_env
     )
 )

@@ -55,6 +55,8 @@ log = logging.getLogger(__name__)
 ### Enable argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
+parser.add_argument('--env', type=json.loads, help='Set script environment')
+parser.add_argument('--user', type=json.loads, help='Load user settings')
 parser.add_argument('--settings', type=json.loads, help='Load script settings')
 
 args, unknown = parser.parse_known_args()
@@ -63,42 +65,44 @@ if unknown:
 
 ### Load arguments
 cli_opts = args.opts
+cli_env = args.env
+cli_user = args.user
+cli_settings = args.settings
 
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
 
-#@TODO: Turn this into a dictionary/function
-### Read system envs
-ENV_RESOURCES_PATH = os.getenv("RESOURCES_PATH", "/resources")
-ENV_WORKSPACE_HOME = os.getenv("WORKSPACE_HOME", "/workspace")
-ENV_DATA_PATH = os.getenv("DATA_PATH", "/data")
-ENV_CONDA_ENV_PATH = os.getenv("CONDA_ENV_PATH")
+### Get envs
+conda_env_path = cli_env.get("CONDA_ENV_PATH")
 
-### Clean up envs
-workspace_dir = os.path.normpath(ENV_WORKSPACE_HOME)
-data_dir = os.path.normpath(ENV_DATA_PATH)
+### Get user settings
+user_name = cli_user.get("name")
+
+### Set config and data paths
+workspace_dir = os.path.normpath(cli_user.get("dirs").get("workspace").get("path"))
+data_dir = os.path.normpath(cli_user.get("dirs").get("data").get("path"))
 
 ### Process env files
 existing_envs = get_conda_envs()
 log.info(f"existing conda environments: '{existing_envs}")
 
-if not ENV_CONDA_ENV_PATH == None:
-    conda_env_path = os.path.normpath(ENV_CONDA_ENV_PATH)
+if not conda_env_path == "":
+    conda_env_path = os.path.normpath(conda_env_path)
     if os.path.isfile(conda_env_path):
         with open(conda_env_path) as f:
             body = f.read()
 
         #force_solve = bool(request.args.get("force_solve", False))
         force_solve = False
-        filename = os.path.basename(ENV_CONDA_ENV_PATH)
+        filename = os.path.basename(conda_env_path)
         conda_env = parse_environment(filename, body, force_solve)
         name = conda_env.get("name")
         if name in existing_envs:
             log.warning(f"environment exists: '{name}'")
         else:
             if conda_env.get("error") == None:
-                log.info(f"reading '{ENV_CONDA_ENV_PATH}' and setting up environment: '{name}'")
+                log.info(f"reading '{conda_env_path}' and setting up environment: '{name}'")
                 log.info("\n" + body)
                 create_env = ['conda', 'env','create', '-f', conda_env_path]
                 proc = conda_create(conda_env_path)

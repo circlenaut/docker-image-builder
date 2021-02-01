@@ -328,10 +328,10 @@ def init_shell(config, environment):
      return user_env
 
 def setup_user(config, environment, args):
+     # Get workspace environment
      workspace_env = environment
-     cli_args_json = json.dumps(args)
-     cli_user_json = json.dumps(config)
 
+     # Get user config
      user_name = config.get("name")
      user_group = config.get("group")
      user_password = config.get("password")
@@ -339,36 +339,39 @@ def setup_user(config, environment, args):
      user_home = config.get("dirs").get("home").get("path")
 
      log.info(f"Creating user: '{user_name}'")
+     # Create user and set permissions
      create_user(config)
      set_user_paths(config)
      
+     # Run setup scripts
      setup_ssh(user_name, user_group, workspace_env)
      change_pass(user_name, "password", user_password)
      change_user_shell(user_name, user_shell)
      
+     # Initialize user shell and environment
      user_env = init_shell(config, workspace_env)
+     
+     # Create json dumps for passage into scripts
+     cli_args_json = json.dumps(args)
+     cli_user_json = json.dumps(config)
      user_env_json = json.dumps(user_env)
      
+     # Fix permissions
      set_user_paths(config)
+     
+     # Run final check
      user_exists, home_exists, user_record = check_user(name)
      log.debug("user record:")
      log.debug(user_record)
 
-     # configure system services
-     #services = ["ssh", "cron"]
-     services = ["ssh"]
-     for serv in services:
-          log.info(f"configuring system service: '{serv}'")
-          run(
-               ['python3', f'/scripts/configure_{serv}.py', 
-               '--opts', cli_args_json, 
-               '--env', user_env_json, 
-               '--user', cli_user_json],
-               env=user_env
-          )
+     ssh_dir = os.path.join(user_home, ".ssh")
+     log.warning("setting correct permissions on '.ssh'")
+     func.recursive_chown(ssh_dir, user_name, user_group)
+     func.recursive_chmod(ssh_dir, "600")
+     func.chmod(ssh_dir, "700")
 
-     # configure user settings
-     services = ["zsh"]
+     # Configure user shell
+     services = ["ssh", "zsh"]
      for serv in services:
           log.info(f"configuring user service: '{serv}'")
           run(
@@ -379,6 +382,7 @@ def setup_user(config, environment, args):
                env=user_env
           )
 
+     # Load any startup scripts
      startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
      if os.path.exists(startup_custom_script):
           log.info("Run on_startup.sh user script from workspace folder")
@@ -388,9 +392,12 @@ def setup_user(config, environment, args):
                env=user_env
           )
 
-     ### Create conda environments
+     # Create conda environments
      run(
-           ['conda', 'run','-n', 'base', 'python', '/scripts/setup_workspace.py', '--opts', cli_args_json], 
+          ['conda', 'run','-n', 'base', 'python', '/scripts/setup_workspace.py', 
+               '--opts', cli_args_json,
+               '--env', user_env_json, 
+               '--user', cli_user_json],
           env=user_env
      )
      # fix permissions
@@ -457,7 +464,7 @@ def run_user_services_config(config, environment, exists, args):
           }
      } 
 
-
+     # Create json dumps for passage into scripts
      cli_args_json = json.dumps(args)
      user_env_json = json.dumps(user_env)
      cli_user_json = json.dumps(config)
@@ -504,12 +511,6 @@ log.setLevel(verbosity)
 user_name = cli_env.get("WORKSPACE_USER")
 user_group = cli_env.get("WORKSPACE_GROUP")
 user_password = cli_env.get("WORKSPACE_USER_PASSWORD")
-proxy_base_url = cli_env.get("PROXY_BASE_URL")
-caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
-app_bind_addr = cli_env.get("APP_BIND_ADDR")
-app_base_url = cli_env.get("APP_BASE_URL")
-app_user = cli_env.get("APP_USER")
-app_password = cli_env.get("APP_PASSWORD")
 
 ### Set workspace env
 workspace_env = cli_env
@@ -579,22 +580,27 @@ for u in USERS.split(" "):
      }
 
 ### Setup SSH
+# Create json dumps for passage into scripts
 cli_opts_json = json.dumps(cli_opts)
 cli_users_json = json.dumps(users)
 workspace_env_json = json.dumps(workspace_env)
+# Execute
 run(
      ['python3', f'/scripts/setup_ssh.py', 
-     '--opts', cli_opts_json, 
-     '--env', workspace_env_json,
-     '--users', cli_users_json],
+          '--opts', cli_opts_json, 
+          '--env', workspace_env_json,
+          '--users', cli_users_json],
      env=workspace_env
 )
 
 ### Configure users
 for u, config in users.items():
      user_name = config.get("name")
+     user_group = config.get("name")
      workspace_auth_password = config.get("password")
      user_exists, home_exists, user_record = check_user(user_name)
+
+     cli_user_json = json.dumps(config)
 
      if not user_exists and not home_exists:
           log.warning(f"User and home does not exist, creating: '{user_name}'")
@@ -602,8 +608,32 @@ for u, config in users.items():
           user_exists, home_exists, user_record = check_user(user_name)
           log.info(user_record)
 
+          # Run user config restoration
+          action = "restore"
+          log.info(f"backup script: '{action}'")
+
+          run(
+               ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
+                    '--opts', cli_opts_json,
+                    '--env', workspace_env_json,
+                    '--user', cli_user_json,
+                    '--mode', action],
+               env=workspace_env
+          )
+
+          # Setup user services
           exists = False      
           run_user_services_config(config, user_env, exists, cli_opts)
+
+          # Setup backup script
+          log.info(f"configuring user service: 'cron'")
+          run(
+               ['sudo', '-i', '-u', user_name, 'python3', f'/scripts/configure_cron.py', 
+                    '--opts', cli_opts_json, 
+                    '--env', workspace_env_json, 
+                    '--user', cli_user_json],
+               env=workspace_env
+          )
 
           for env, value in user_env.items():
                func.set_env_variable(env, value, ignore_if_set=False)
@@ -641,9 +671,6 @@ for u, config in users.items():
           
           exists = True
           run_user_services_config(config, user_env, exists, cli_opts)
-          ssh_dir = os.path.join(config.get("dirs").get("home").get("path"), ".ssh")
-          log.warning("setting correct permissions on '.ssh'")
-          func.recursive_chmod(ssh_dir, "600")
 
           # Set enviornments
           for env, value in user_env.items():

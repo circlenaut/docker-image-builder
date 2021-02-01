@@ -95,7 +95,7 @@ services:
 #            'count': 1
 #            'capabilities': ['gpu', 'utility']
     environment:
-#      LOG_VERBOSITY: "ERROR"
+      LOG_VERBOSITY: "DEBUG"
       VIRTUAL_HOST: "pod2.colab.proneer.co"
 #      VIRTUAL_BIND_IP: "10.95.46.219"
 #      VIRTUAL_BIND_NET: "proxy"
@@ -114,7 +114,7 @@ services:
 #      WORKSPACE_PORT: "8080"
       VSCODE_BIND_ADDR: "0.0.0.0:8300"
 #      VSCODE_BASE_URL: "/code"
- #     CONDA_ENV_PATH: "/data/environment.yml"
+#      CONDA_ENV_PATH: "/data/environment.yml"
       CONFIG_BACKUP_ENABLED: "true"
 #      SHARED_LINKS_ENABLED: "true"
 #      MAX_NUM_THREADS: "auto"
