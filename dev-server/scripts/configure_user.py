@@ -392,19 +392,6 @@ def setup_user(config, environment, args):
                env=user_env
           )
 
-     # Create conda environments
-     run(
-          ['conda', 'run','-n', 'base', 'python', '/scripts/setup_workspace.py', 
-               '--opts', cli_args_json,
-               '--env', user_env_json, 
-               '--user', cli_user_json],
-          env=user_env
-     )
-     # fix permissions
-     conda_root = os.path.join(user_home, ".conda")
-     log.info(f"fixing ownership of '{conda_root}' for '{user_name}:{user_group}'")
-     func.recursive_chown(conda_root, user_name, user_group)
-
      return user_env
 
 def run_user_services_config(config, environment, exists, args):
@@ -597,6 +584,7 @@ run(
 for u, config in users.items():
      user_name = config.get("name")
      user_group = config.get("name")
+     user_home = config.get("dirs").get("home").get("path")
      workspace_auth_password = config.get("password")
      user_exists, home_exists, user_record = check_user(user_name)
 
@@ -705,5 +693,42 @@ for u, config in users.items():
           
      else:
           log.error(f"User exists: 'error'")
+
+     ### Create conda environments
+     # Set conda envs
+     conda_root = os.path.join(user_home, ".conda")
+     conda_bin = os.path.join(conda_root, "bin")
+     #conda_rc = os.path.join(home, ".condarc")
+     log.info(f'adding {conda_bin} to PATH')
+     workspace_env['PATH'] += os.pathsep + conda_bin
+     # required for conda to work
+     workspace_env['USER'] = user_name
+     workspace_env['HOME'] = home
+
+     # Execute
+     log.info("Creating conda environments")
+     run(
+          ['conda', 'run','-n', 'base', 'python', '/scripts/setup_workspace.py', 
+               '--opts', cli_opts_json,
+               '--env', workspace_env_json, 
+               '--user', cli_user_json],
+          env=workspace_env
+     )
+     # Fix permissions
+     log.info(f"fixing ownership of '{conda_root}' for '{user_name}:{user_group}'")
+     func.recursive_chown(conda_root, user_name, user_group)
+
+     ### Run user config backup
+     action = "backup"
+     log.info(f"backup script: '{action}'")
+
+     run(
+          ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
+               '--opts', cli_opts_json,
+               '--env', workspace_env_json,
+               '--user', cli_user_json,
+               '--mode', action],
+          env=workspace_env
+     )
 
 
