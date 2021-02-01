@@ -79,7 +79,7 @@ services:
 #       - "8080"
     networks:
       - proxy
-#    volumes:
+    volumes:
 #      - "./tests/pod2-colab/envs:/opt/conda/envs"
 #      - "/data/workspaces/pod2/envs:/opt/conda/envs"
 #      - "/data/workspaces/pod2/workspace:/workspace"
@@ -87,6 +87,7 @@ services:
 #      - "./tests/pod2-colab/environment.yml:/data/environment.yml"
 #      - "./tests/conda-parser:/data/conda-parser"
 #      - "./tests/cp-vton-plus:/data/cp-vton-plus"
+      - "./tests/workspace:/workspace"
 #    deploy:
 #      resources:
 #        reservations:

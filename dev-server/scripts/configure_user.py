@@ -600,43 +600,60 @@ for u, config in users.items():
      workspace_auth_password = config.get("password")
      user_exists, home_exists, user_record = check_user(user_name)
 
+     config_backup_folder = workspace_dir + "/.workspace/backup/"
+
      cli_user_json = json.dumps(config)
 
      if not user_exists and not home_exists:
           log.warning(f"User and home does not exist, creating: '{user_name}'")
-          user_env = setup_user(config, workspace_env, cli_opts)
-          user_exists, home_exists, user_record = check_user(user_name)
-          log.info(user_record)
 
-          # Run user config restoration
-          action = "restore"
-          log.info(f"backup script: '{action}'")
+          if os.path.exists(config_backup_folder):
+               # Create user
+               create_user(config)
+               user_exists, home_exists, user_record = check_user(user_name)
+               log.debug(user_record)
 
-          run(
-               ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
-                    '--opts', cli_opts_json,
-                    '--env', workspace_env_json,
-                    '--user', cli_user_json,
-                    '--mode', action],
-               env=workspace_env
-          )
+               # Set password
+               change_pass(config.get("name"), "password", config.get("password"))
 
-          # Setup user services
-          exists = False      
-          run_user_services_config(config, user_env, exists, cli_opts)
+               # Run user config restoration
+               action = "restore"
+               log.info(f"backup script: '{action}'")
 
-          # Setup backup script
-          log.info(f"configuring user service: 'cron'")
-          run(
-               ['sudo', '-i', '-u', user_name, 'python3', f'/scripts/configure_cron.py', 
-                    '--opts', cli_opts_json, 
-                    '--env', workspace_env_json, 
-                    '--user', cli_user_json],
-               env=workspace_env
-          )
+               run(
+                    ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
+                         '--opts', cli_opts_json,
+                         '--env', workspace_env_json,
+                         '--user', cli_user_json,
+                         '--mode', action],
+                    env=workspace_env
+               )
 
-          for env, value in user_env.items():
-               func.set_env_variable(env, value, ignore_if_set=False)
+               # Fix permissiosn
+               set_user_paths(config)
+               
+          else:
+               # Create user
+               user_env = setup_user(config, workspace_env, cli_opts)
+               user_exists, home_exists, user_record = check_user(user_name)
+               log.debug(user_record)
+
+               # Setup user services
+               exists = False      
+               run_user_services_config(config, user_env, exists, cli_opts)
+
+               # Setup backup script
+               log.info(f"configuring user service: 'cron'")
+               run(
+                    ['sudo', '-i', '-u', user_name, 'python3', f'/scripts/configure_cron.py', 
+                         '--opts', cli_opts_json, 
+                         '--env', workspace_env_json, 
+                         '--user', cli_user_json],
+                    env=workspace_env
+               )
+
+               for env, value in user_env.items():
+                    func.set_env_variable(env, value, ignore_if_set=False)
 
      elif user_exists and not home_exists:
           # create missing user's home
