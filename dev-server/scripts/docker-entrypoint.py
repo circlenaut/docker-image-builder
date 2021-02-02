@@ -47,6 +47,13 @@ if os.path.exists('/scripts/config.yaml'):
     valid_config = func.yaml_valid(schema, data, "INFO")
 elif os.path.exists('/scripts/config.yml'):
     config_path = '/scripts/config.yml'
+    # Validate file
+    schema = yamale.make_schema('/scripts/schema.yaml')
+    data = yamale.make_data(config_path)
+    valid_config = func.yaml_valid(schema, data, "INFO")
+elif os.path.exists('/scripts/config.yml') and os.path.exists('/scripts/config.yaml'):
+    config_path = '/scripts/config.yml'
+    log.warning("both config.yaml and config.yml exists, using config.yml")
     if os.path.exists('/scripts/config.yaml'): os.remove('/scripts/config.yaml')
     # Validate file
     schema = yamale.make_schema('/scripts/schema.yaml')
@@ -73,7 +80,7 @@ docker_env = {
     'CONFIG_BACKUP_ENABLED': os.getenv("CONFIG_BACKUP_ENABLED", "true"),
     'WORKSPACE_USER': os.getenv("WORKSPACE_AUTH_USER", "coder"),
     'WORKSPACE_GROUP': os.getenv("WORKSPACE_AUTH_GROUP", "users"),
-    'WORKSPACE_USER_SHELL': os.getenv("WORKSPACE_USER_SHELL", "/usr/bin/zsh"),
+    'WORKSPACE_USER_SHELL': os.getenv("WORKSPACE_USER_SHELL", "zsh"),
     'WORKSPACE_USER_PASSWORD': os.getenv("WORKSPACE_AUTH_PASSWORD", "password"),
     'RESOURCES_PATH': os.getenv("RESOURCES_PATH", "/resources"),
     'WORKSPACE_HOME': os.getenv("WORKSPACE_HOME", "/workspace"),
@@ -166,9 +173,6 @@ else:
     # copy users back
     configs_list["users"] = copy(users_config_copy)
     
-# Display final config
-log.debug(configs_list)
-
 ### Reset verbosity level according to yaml file. log.info occasinally throws EOF errors with high verbosity
 if configs_list.get("system").get("log_verbosity") in [
     "DEBUG",
@@ -192,8 +196,8 @@ log.setLevel(verbosity)
 default_user = [{
     'name': configs_list.get("system").get("workspace_user"), 
     'group': configs_list.get("system").get("workspace_group"), 
-    'uid': 1000, 
-    'gid': 100, 
+    'uid': "1000", 
+    'gid': "100", 
     'shell': configs_list.get("system").get("workspace_user_shell"), 
     'password': configs_list.get("system").get("workspace_user_password"), 
     'directories': [
@@ -374,21 +378,42 @@ user_configs = [
     },
 ]
 
-#if missing get from default user
+### Set user config
 if configs_list.get("users") == None:
     log.info(f"Users not defined in yaml config file. Going with single user mode and importing settings from docker env or setting from default")
     configs_list["users"] = default_user
     # Show to console
     default_user_json = json.dumps(default_user, indent = 4)
-    log.debug(default_user_json)
 elif len(configs_list.get("users")) == 0:
     log.info("User's list empty, populate and restart container")
     sys.exit()   
 elif len(configs_list.get("users")) == 1:
     log.info("Building a single user environment")
-    # what's the point of this?
-    for uc in user_configs:
-        set_user_config(uc, default_user, verbosity)    
+    # what's the point of this? overwrite workspace envs with corresponding user envs? Maybe not good to touch and better keep docker envs concistent with this dict. Don't overwrite with user settings. Also simpler
+    #for uc in user_configs:
+        #set_user_config(uc, default_user, verbosity)
+
+    user_count = 0
+    for u in configs_list.get("users"):
+        log.debug(f"working on user count: '{user_count}'")
+        log.info(list(default_user[0].keys()))
+        for default_config, default_setting in default_user[0].items():
+            for config, setting in u.items():
+                if config == default_config:
+                    if setting == default_setting:
+                        log.debug(f"yaml config setting same as default: '{config}' --> '{setting}'")
+                    else:
+                        log.debug(f"yaml config setting differs from default - {config}: '{default_setting}'--> '{setting}'")    
+                if config == "name":
+                    user = setting
+                    home = os.path.join("/home", user)
+            if not default_config in list(u.keys()):
+                log.info(f"not set in yaml config, setting from default settings: '{default_config}' --> '{default_setting}'")
+                configs_list.get("users")[user_count][default_config] = default_setting
+        user_count+=1
+        
+    log.info(f"setting workspace user to: '{user}'")
+
 elif len(configs_list.get("users")) > 1:
     log.info("More than 2 users defined, haven't build this functionality yet. Remove extra users and restart container.")
     sys.exit()
@@ -499,10 +524,9 @@ run(
 )
 
 ### Set workspace user and home
-user = docker_env.get("WORKSPACE_USER")
-home = os.path.join("/home", user)
 workspace_env['USER'] = user
 workspace_env['HOME'] = home
+workspace_env['WORKSPACE_USER'] = user
 workspace_env['WORKSPACE_USER_HOME'] = home
 
 ### Start workspace

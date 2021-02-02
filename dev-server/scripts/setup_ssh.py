@@ -49,20 +49,16 @@ root_group = "root"
 application = "ssh config"
 
 ### Set config and data paths
-
 config_dir = os.path.join("/etc", "ssh")
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
 
 ### Create config template
 # set user access
-allow_users = [root_user]
-for u, config in cli_users.items():
-    user_name = config.get("name")
-    allow_users.append(user_name)
-    
+allow_users = [root_user] + cli_users.get("users")
 s = ' '
 AllowUsers = s.join(allow_users)
+log.info(f"users with ssh access: '{AllowUsers}'")
 
 # match block
 match_block = {

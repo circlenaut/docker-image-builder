@@ -87,7 +87,7 @@ elif args.mode == "backup":
     
     rsync_backup = ['rsync', '-a', '-r', '-t', '-z', '-E', '-X', '-A', '--max-size=100m']
 
-    backup_selection = cli_opts.get("backup_selection")
+    backup_selection = cli_user.get("backup_paths")
 
     backup_suffix = [config_backup_folder]
     

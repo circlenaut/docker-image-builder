@@ -64,8 +64,10 @@ log.setLevel(verbosity)
 ### Get envs
 proxy_base_url = cli_env.get("PROXY_BASE_URL")
 caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
-vscode_bind_addr = cli_env.get("VSCODE_BIND_ADDR")
-vscode_base_url = cli_env.get("VSCODE_BASE_URL")
+#vscode_bind_addr = cli_env.get("VSCODE_BIND_ADDR")
+#vscode_base_url = cli_env.get("VSCODE_BASE_URL")
+vscode_bind_addr = cli_user.get("vscode").get("bind_addr")
+vscode_base_url = cli_user.get("vscode").get("base_url")
 
 ### Get user settings
 user_name = cli_user.get("name")
@@ -121,7 +123,7 @@ config_file = {
 installed_extensions = get_installed_extensions()
 
 # Install new extensions if not already installed
-for e in cli_settings.get("config").get("extensions"):
+for e in cli_user.get("vscode").get("extensions"):
     if e in installed_extensions:
         log.warning(f"vscode extension exists: '{e}'")
         continue

@@ -95,7 +95,7 @@ zsh_plugins = cli_env.get("ZSH_PLUGINS")
 
 # Get user settings
 user_name = cli_user.get("name")
-user_shell = cli_user.get("shell")
+user_shell = cli_user.get("shell_path")
 user_home = cli_user.get("dirs").get("home").get("path")
 workspace_dir = cli_user.get("dirs").get("workspace").get("path")
 
@@ -120,41 +120,9 @@ if not os.path.exists(on_my_zsh_dir):
     )
 
     # Set options to load
-    prompt_list = [
-        "https://github.com/sindresorhus/pure",
-    ]
-
-    theme_list = [
-        "https://github.com/romkatv/powerlevel10k",
-        "https://github.com/denysdovhan/spaceship-prompt",
-        "https://github.com/sobolevn/sobole-zsh-theme",
-    ]
-
-    plugin_list = [
-        "git",
-        "k",
-        "extract",
-        "cp",
-        "yarn",
-        "npm",
-        "supervisor",
-        "rsync",
-        "command-not-found",
-        "autojump",
-        "colored-man-pages",
-        "git-flow",
-        "git-extras",
-        "python",
-        "zsh-autosuggestions",
-        "history-substring-search",
-        "zsh-completions",
-        "ssh-agent",
-        "https://github.com/zsh-users/zsh-autosuggestions",
-        "https://github.com/zsh-users/zsh-completions",
-        "https://github.com/zsh-users/zsh-syntax-highlighting",
-        "https://github.com/zsh-users/zsh-history-substring-search",
-        "https://github.com/supercrabtree/k",
-    ]
+    prompt_list = cli_user.get("zsh").get("prompt")
+    theme_list = cli_user.get("zsh").get("theme")
+    plugin_list = cli_user.get("zsh").get("plugins")
 
     additional_args = [
         f'export PATH="{system_path}:$PATH"',
@@ -283,8 +251,8 @@ if not os.path.exists(on_my_zsh_dir):
         ]
 
     # Run validation checks
-    set_prompt = zsh_prompt
-    set_theme = zsh_theme
+    set_prompt = cli_user.get("zsh").get("set_prompt")
+    set_theme = cli_user.get("zsh").get("set_theme")
     default_theme = "robbyrussell"
         
     if set_prompt in prompt_names or set_prompt == "none":
@@ -365,9 +333,10 @@ if not os.path.exists(on_my_zsh_dir):
         env=zsh_env
     )
 
+    #@TODO: get this working
     ### Install pip packages
-#    for app in pip_api.installed_distributions():
-#        log.error(app.name)
+    #for app in pip_api.installed_distributions():
+    #    log.error(app.name)
     run(
         ['pip3', 'install',
             'Pygments',

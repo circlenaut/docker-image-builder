@@ -46,9 +46,12 @@ log.setLevel(verbosity)
 ### Get envs
 proxy_base_url = cli_env.get("PROXY_BASE_URL")
 caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
-fb_port = cli_env.get("FB_PORT")
-fb_base_url = cli_env.get("FB_BASE_URL")
-fb_root_dir = cli_env.get("FB_ROOT_DIR")
+#fb_port = cli_env.get("FB_PORT")
+#fb_base_url = cli_env.get("FB_BASE_URL")
+#fb_root_dir = cli_env.get("FB_ROOT_DIR")
+fb_port = cli_user.get("filebrowser").get("port")
+fb_base_url = cli_user.get("filebrowser").get("base_url")
+fb_root_dir = cli_user.get("filebrowser").get("root_dir")
 
 ### Get user settings
 user_name = cli_user.get("name")

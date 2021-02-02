@@ -49,10 +49,15 @@ log.setLevel(verbosity)
 ### Get envs
 proxy_base_url = cli_env.get("PROXY_BASE_URL")
 caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
-app_bind_addr = cli_env.get("APP_BIND_ADDR")
-app_base_url = cli_env.get("APP_BASE_URL")
-app_user = cli_env.get("APP_USER")
-app_password = cli_env.get("APP_PASSWORD")
+#app_bind_addr = cli_env.get("APP_BIND_ADDR")
+#app_base_url = cli_env.get("APP_BASE_URL")
+#app_user = cli_env.get("APP_USER")
+#app_password = cli_env.get("APP_PASSWORD")
+app_bind_addr = cli_user.get("app").get("bind_addr")
+app_base_url = cli_user.get("app").get("base_url")
+app_root_dir = cli_user.get("app").get("root_dir")
+app_username = cli_user.get("app").get("user")
+app_password = cli_user.get("app").get("password")
 
 ### Get user settings
 user_name = cli_user.get("name")
@@ -103,7 +108,7 @@ log.info(f"{application} hashed password: '{hashed_password}'")
 
 ### Create config template
 config_file = {
-    "admin": app_user,
+    "admin": app_username,
     "logging": {},
     "name": application,
     "host": "localhost",
