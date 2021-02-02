@@ -407,6 +407,8 @@ elif len(configs_list.get("users")) == 1:
                 if config == "name":
                     user = setting
                     home = os.path.join("/home", user)
+                if config == "password":
+                    password = setting
             if not default_config in list(u.keys()):
                 log.info(f"not set in yaml config, setting from default settings: '{default_config}' --> '{default_setting}'")
                 configs_list.get("users")[user_count][default_config] = default_setting
@@ -528,6 +530,7 @@ workspace_env['USER'] = user
 workspace_env['HOME'] = home
 workspace_env['WORKSPACE_USER'] = user
 workspace_env['WORKSPACE_USER_HOME'] = home
+workspace_env['WORKSPACE_USER_PASSWORD'] = password
 
 ### Start workspace
 sys.exit(
