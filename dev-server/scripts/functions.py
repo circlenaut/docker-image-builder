@@ -9,6 +9,7 @@ import shutil
 import re
 import logging
 import requests
+import yamale
 from urllib.parse import quote, urljoin, urlparse
 from subprocess   import run, call, Popen, PIPE
 
@@ -53,6 +54,15 @@ def recursive_chmod(path, mode):
                # Don't set permissions on symlinks
                if not os.path.islink(file_path):
                     chmod(file_path, mode)
+
+def yaml_valid(schema, data, level):
+    log.setLevel(level)
+    try:
+        yamale.validate(schema, data)
+        return True
+    except yamale.YamaleError as e:
+        log.error('YAML Validation failed!\n%s' % str(e))
+        return False
 
 def hash_password(password):
      encoded_password = password.encode()

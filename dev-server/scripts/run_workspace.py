@@ -52,5 +52,3 @@ log.debug(func.capture_cmd_stdout('env', supervisor_env))
 
 # Execute
 run(['supervisord', '-n', '-c', '/etc/supervisor/supervisord.conf'])
-
-#/etc/environment

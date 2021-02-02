@@ -314,23 +314,6 @@ RUN \
     # Fix permissions
     && fix-permissions.sh $HOME
 
-### Install and activate Conda
-#ENV CONDA_BIN="/opt/conda"
-
-#RUN \
-#    cd /tmp \
-#    && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-#RUN \
-#    cd /tmp \
-#    && sh Miniconda3* -u -b -p $CONDA_BIN
-#RUN \
-#    $CONDA_BIN/bin/conda init bash
-
-### disable conda default base
-#RUN \
-#    $CONDA_BIN/bin/conda config --set auto_activate_base false \  
-#    # Cleanup
-#    && clean-layer.sh
 
 ### Install pyenv to allow dynamic creation of python versions
 RUN \
@@ -368,11 +351,13 @@ RUN \
         psutil \
         python-crontab \
         pyyaml \
+        yamale \
         typing \
         docker \
         ansible \
         passlib \
         bcrypt \
+        watchgod \
     # Cleanup
     && clean-layer.sh
 

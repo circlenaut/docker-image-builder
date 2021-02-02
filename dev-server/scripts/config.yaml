@@ -1,0 +1,17 @@
+system:
+    name: pod2-colab
+    port: 900
+users:
+    name: coder
+    group: users
+    custom:
+        uid: 3
+        url: 'https://www.example.com'
+recursion:
+    value: 'a'
+    again:
+        value: 'b'
+        again:
+            value: 'c'
+            again:
+                value: 'd'

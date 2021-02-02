@@ -52,5 +52,9 @@ COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
 COPY scripts/configure_caddy.py $SCRIPTS_PATH
 COPY scripts/configure_app.py $SCRIPTS_PATH
 COPY scripts/setup_workspace.py $SCRIPTS_PATH
+# copy main config file
+#COPY scripts/config.yaml $SCRIPTS_PATH
+# copy yaml validator schema
+COPY scripts/schema.yaml $SCRIPTS_PATH
 
 ENTRYPOINT ["python3", "/docker-entrypoint.py"]

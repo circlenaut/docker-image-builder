@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 from subprocess import run, call, Popen, PIPE
 from users_mod  import PwdFile
 from pathlib import Path
+from watchgod import run_process
 import functions as func
 
 def check_user(user_name):
@@ -481,6 +482,7 @@ log = logging.getLogger(__name__)
 parser = argparse.ArgumentParser()
 parser.add_argument('--opts', type=json.loads, help='Set script arguments')
 parser.add_argument('--env', type=json.loads, help='Set script environment')
+parser.add_argument('--configs', type=json.loads, help='Load YAML config')
 
 args, unknown = parser.parse_known_args()
 if unknown:
@@ -489,6 +491,9 @@ if unknown:
 # load arguments
 cli_opts = args.opts
 cli_env = args.env
+cli_configs = args.configs
+
+log.info(cli_configs)
 
 ### Set log level
 verbosity = cli_opts.get("verbosity")
@@ -511,32 +516,42 @@ app_dir = os.path.normpath(cli_env.get("APP_ROOT_DIR"))
      
 users = dict()
 
+cli_configs.get("users")
 #USERS = f"coder:1000:100:zsh test:1001:101:bash"
 USERS = f"{user_name}:{user_group}:1000:100:zsh:{user_password}"
 
-for u in USERS.split(" "):
-     configs = u.split(":")
-     name = configs[0]
-     group = configs[1]
-     uid = configs[2]
-     gid = configs[3]
-     shell = configs[4]
-     password = configs[5]
+#for u in USERS.split(" "):
+for u in cli_configs.get("users"):
+#     configs = u.split(":")
+#     name = configs[0]
+#     group = configs[1]
+#     uid = configs[2]
+#     gid = configs[3]
+#     shell = configs[4]
+#     password = configs[5]
+#     home = os.path.join("/home", name)
+
+     name = u.get("name")
+     group = u.get("group")
+     uid = u.get("uid")
+     gid = u.get("gid")
+     shell = u.get("shell")
+     password = u.get("password")
      home = os.path.join("/home", name)
      
-     if shell == "zsh": 
-          shell_path = "/usr/bin/zsh"
-     elif shell == "bash":
-          shell_path = "/bin/bash"
-     else:
-          log.warning(f"invalid shell for user '{name}': '{shell}'")
+     #if shell == "zsh": 
+     #     shell_path = "/usr/bin/zsh"
+     #elif shell == "bash":
+     #     shell_path = "/bin/bash"
+     #else:
+     #     log.warning(f"invalid shell for user '{name}': '{shell}'")
 
      users[name] = {
           'name': name,
           'group': group,
           'uid': uid,
           'gid': gid,
-          'shell': shell_path,
+          'shell': shell,
           'password': password,
           'dirs' : {
                'home': {
@@ -591,6 +606,24 @@ for u, config in users.items():
      config_backup_folder = workspace_dir + "/.workspace/backup/"
 
      cli_user_json = json.dumps(config)
+
+     cli_opts["backup_selection"] = [
+               f'/home/{user_name}/.config',
+               f'/home/{user_name}/.ssh',
+               f'/home/{user_name}/.zshrc',
+               f'/home/{user_name}/.bashrc',
+               f'/home/{user_name}/.profile',
+               f'/home/{user_name}/.condarc',
+               f'/home/{user_name}/.oh-my-zsh',
+               f'/home/{user_name}/.gitconfig',
+               f'/home/{user_name}/filebrowser.db',
+               f'/home/{user_name}/.local',
+               f'/home/{user_name}/.conda',
+               f'/home/{user_name}/.vscode',
+               f'/home/{user_name}/.jupyter'
+     ] 
+
+     cli_opts_json = json.dumps(cli_opts)
 
      if not user_exists and not home_exists:
           log.warning(f"User and home does not exist, creating: '{user_name}'")
@@ -731,4 +764,25 @@ for u, config in users.items():
           env=workspace_env
      )
 
+     #@TODO: define a new rsync function derived from this script. This is too much
+     def backup_config(user_name, env, opts, user_json, path):
+          opts["backup_selection"] = [path]
+          opts_json = json.dumps(opts)
+          env_json = json.dumps(env)
+          action = "backup"
+          log.info(f"backup script: '{action}'")
 
+          run(
+               ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
+                    '--opts', opts_json,
+                    '--env', env_json,
+                    '--user', user_json,
+                    '--mode', action],
+               env=env
+          )
+
+     ### Watch directories for changes and run
+     user_ssh_dir = os.path.join(user_home, ".ssh")
+     log.info(f"watching directory for changes: '{user_ssh_dir}'")
+     #run_process(user_ssh_dir, backup_config, args=(user_name, workspace_env, cli_opts, cli_user_json, user_ssh_dir))
+     backup_config(user_name, workspace_env, cli_opts, cli_user_json, user_ssh_dir)

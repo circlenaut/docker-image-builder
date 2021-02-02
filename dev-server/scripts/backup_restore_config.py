@@ -87,21 +87,7 @@ elif args.mode == "backup":
     
     rsync_backup = ['rsync', '-a', '-r', '-t', '-z', '-E', '-X', '-A', '--max-size=100m']
 
-    backup_selection = [
-        f'/home/{user_name}/.config',
-        f'/home/{user_name}/.ssh',
-        f'/home/{user_name}/.zshrc',
-        f'/home/{user_name}/.bashrc',
-        f'/home/{user_name}/.profile',
-        f'/home/{user_name}/.condarc',
-        f'/home/{user_name}/.oh-my-zsh',
-        f'/home/{user_name}/.gitconfig',
-        f'/home/{user_name}/filebrowser.db',
-        f'/home/{user_name}/.local',
-        f'/home/{user_name}/.conda',
-        f'/home/{user_name}/.vscode',
-        f'/home/{user_name}/.jupyter'       
-    ]
+    backup_selection = cli_opts.get("backup_selection")
 
     backup_suffix = [config_backup_folder]
     
