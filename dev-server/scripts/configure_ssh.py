@@ -10,6 +10,7 @@ import logging
 import argparse
 import json
 from subprocess import run
+import functions as func
 
 # Enable logging
 logging.basicConfig(
@@ -44,6 +45,7 @@ log.setLevel(verbosity)
 user_name = cli_user.get("name")
 user_group = cli_user.get("group")
 user_home = cli_user.get("dirs").get("home").get("path")
+pub_keys = cli_user.get("ssh").get("pub_keys")
 
 root_user = "root"
 root_group = "root"
@@ -89,6 +91,15 @@ run("touch " + user_home + "/.ssh/known_hosts", shell=True)
 run("echo "" >> " + user_home + "/.ssh/authorized_keys", shell=True)
 # only add to authrized key if it does not exist yet within the file
 run('grep -qxF "$(cat {home}/.ssh/{key_name}.pub)" {home}/.ssh/authorized_keys || cat {home}/.ssh/{key_name}.pub >> {home}/.ssh/authorized_keys'.format(home=user_home, key_name=SSH_KEY_NAME), shell=True)
+
+# Authorize user's public keys
+pub_key_auth_file = os.path.join(user_home, ".ssh", "authorized_keys")
+for key in pub_keys:
+    log.info(f"authorizing key: '{key}'")
+    with open(pub_key_auth_file, "a") as f: 
+        f.write(key + "\n")
+# fix permissions
+func.chmod(pub_key_auth_file, "600")
 
 # Add identity to ssh agent -> e.g. can be used for git authorization
 run("eval \"$(ssh-agent -s)\" && ssh-add " + user_home + "/.ssh/"+SSH_KEY_NAME + " > /dev/null", shell=True)

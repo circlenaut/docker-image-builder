@@ -286,6 +286,9 @@ default_user = [{
             'https://github.com/zsh-users/zsh-history-substring-search', 
             'https://github.com/supercrabtree/k'
         ]},
+    'ssh': {
+        'pub_keys': ['']
+    },
     'filebrowser': {
         'port': configs_list.get("system").get("fb_port"), 
         'base_url': configs_list.get("system").get("fb_base_url"), 
@@ -396,7 +399,6 @@ elif len(configs_list.get("users")) == 1:
     user_count = 0
     for u in configs_list.get("users"):
         log.debug(f"working on user count: '{user_count}'")
-        log.info(list(default_user[0].keys()))
         for default_config, default_setting in default_user[0].items():
             for config, setting in u.items():
                 if config == default_config:

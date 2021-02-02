@@ -56,6 +56,7 @@ user_map:
     backup_paths: list(str(required=False), required=False)
     conda: include('conda_map', required=False)
     zsh: include('zsh_map', required=False)
+    ssh: include('ssh_map', required=False)
     filebrowser: include('filebrowser_map', required=False)
     vscode: include('vscode_map', required=False)
     app: include('app_map', required=False)
@@ -72,6 +73,8 @@ zsh_map:
     prompt: list(str(required=False), required=False)
     theme: list(str(required=False), required=False)
     plugins: list(str(required=False), required=False)
+ssh_map:
+    pub_keys: list(str(required=False), required=False)
 filebrowser_map:
     port: str(required=False)
     base_url: str(required=False)
