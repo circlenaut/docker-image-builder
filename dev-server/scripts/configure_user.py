@@ -505,23 +505,24 @@ for usr in cli_configs.get("users"):
 
      # define user folders
      user_home = cli_configs.get("users")[usr_count].get("dirs").get("home").get("path")
-     workspace_dir = user_home = cli_configs.get("users")[usr_count].get("dirs").get("workspace").get("path")
+     workspace_dir = cli_configs.get("users")[usr_count].get("dirs").get("workspace").get("path")
      config_backup_folder = workspace_dir + "/.workspace/backup/"
 
      user_exists, home_exists, user_record = check_user(user_name, user_home)
+     log.debug(user_record)
 
      # create json dump of user config for passage into scripts
      cli_user_json = json.dumps(usr)
 
      ### Create user and home dir on conditions
      if not user_exists and not home_exists:
-          log.warning(f"User and home does not exist, creating: '{user_name}'")
+          log.warning(f"User and home does not exist, creating: '{user_name}' with home '{user_home}'")
 
           if os.path.exists(config_backup_folder):
+               log.info(f"config backup folder exists '{config_backup_folder}', restoring.")
                # Create user
                create_user(usr)
                user_exists, home_exists, user_record = check_user(user_name, user_home)
-               log.debug(user_record)
 
                # Set password
                change_pass(user_name, user_home, "password", usr.get("password"))
@@ -544,6 +545,7 @@ for usr in cli_configs.get("users"):
                
           else:
                # Create user
+               log.info(f"creating user '{user_name}'")
                user_env = setup_user(usr, workspace_env, cli_opts)
                user_exists, home_exists, user_record = check_user(user_name, user_home)
                log.debug(user_record)
@@ -566,6 +568,7 @@ for usr in cli_configs.get("users"):
                     func.set_env_variable(env, value, ignore_if_set=False)
 
      elif user_exists and not home_exists:
+          log.warning(f"user exists '{user_name}' without a home, creating '{user_home}'...")
           # create missing user's home
           user_env = os.environ.copy()
           log.warning(f"User exists '{user_name}' but home is missing")
@@ -578,6 +581,7 @@ for usr in cli_configs.get("users"):
                func.set_env_variable(env, value, ignore_if_set=True)
 
      elif not user_exists and home_exists:
+          log.warning(f"user '{user_name}' does not exist but a home does exists '{user_home}', creating user but skipping home creation and shell initialization.")
           user_env = os.environ.copy()
           #log.warning(f"User does not exist but a home directory exists, creating: '{user_name}'")
 
@@ -606,7 +610,7 @@ for usr in cli_configs.get("users"):
           # All's peachy for new user
           # move old home to backup and create new user
           user_env = os.environ.copy()
-          log.warning(f"User and home exists '{user_name}'")
+          log.warning(f"User '{user_name}' and home '{user_home}' exists")
 
           exists = True
           for env, value in user_env.items():

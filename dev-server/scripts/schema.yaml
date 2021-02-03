@@ -1,5 +1,5 @@
 system: include('environment', required=False)
-users: list(include('id_map', required=False), required=False)
+users: list(include('id_map', required=True), required=True)
 ---
 environment:
     log_verbosity: str(required=False)
@@ -44,11 +44,11 @@ environment:
     app_password: str(required=False)
 
 ---
-id_map: include('user_map', required=False)
+id_map: include('user_map', required=True)
 user_map:
-    name: str(required=False)
+    name: str(required=True)
     group: str(required=False)
-    uid: str(required=False)
+    uid: str(required=True)
     gid: str(required=False)
     shell: str(required=False)
     password: str(required=False)
@@ -76,11 +76,11 @@ zsh_map:
 ssh_map:
     pub_keys: list(str(required=False), required=False)
 filebrowser_map:
-    port: str(required=False)
+    port: str(required=True)
     base_url: str(required=False)
     root_dir: str(required=False)
 vscode_map:
-    bind_addr: str(required=False)
+    bind_addr: str(required=True)
     base_url: str(required=False)
     extensions: list(str(required=False), required=False)
 app_map:

@@ -80,15 +80,15 @@ services:
     networks:
       - proxy
     volumes:
-       - "./tests/config.yml:/scripts/config.yml"
+      - "./tests/config_test.yml:/scripts/config.yml"
 #      - "./tests/pod2-colab/envs:/opt/conda/envs"
 #      - "/data/workspaces/pod2/envs:/opt/conda/envs"
 #      - "/data/workspaces/pod2/workspace:/workspace"
-#      - "./tests/home:/home"
-#      - "./tests/pod2-colab/environment.yml:/data/environment.yml"
+      - "./tests/home:/home"
+      - "./tests/pod2-colab/environment.yml:/data/environment.yml"
 #      - "./tests/conda-parser:/data/conda-parser"
 #      - "./tests/cp-vton-plus:/data/cp-vton-plus"
-#      - "./tests/workspace:/workspace"
+      - "./tests/workspace:/workspace"
 #    deploy:
 #      resources:
 #        reservations:
@@ -108,13 +108,13 @@ services:
       PROXY_ENCODINGS_GZIP: "true"
       PROXY_ENCODINGS_ZSTD: "true"
       PROXY_TEMPLATES: "true"
-      WORKSPACE_SSL_ENABLED: "false"
-      WORKSPACE_AUTH_USER: "test"
-      WORKSPACE_AUTH_PASSWORD: "${POD2_AUTH_PASSWORD:-password}"
+#      WORKSPACE_SSL_ENABLED: "false"
+#      WORKSPACE_AUTH_USER: "test"
+#      WORKSPACE_AUTH_PASSWORD: "${POD2_AUTH_PASSWORD:-password}"
       #FB_BASE_URL: "/data"
       #FB_PORT: "8055"
 #      WORKSPACE_PORT: "8080"
-      VSCODE_BIND_ADDR: "0.0.0.0:8300"
+#      VSCODE_BIND_ADDR: "0.0.0.0:8300"
 #      VSCODE_BASE_URL: "/code"
       CONDA_ENV_PATH: "/data/environment.yml"
       CONFIG_BACKUP_ENABLED: "true"

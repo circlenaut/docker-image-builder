@@ -120,9 +120,9 @@ if not os.path.exists(on_my_zsh_dir):
     )
 
     # Set options to load
-    prompt_list = cli_user.get("zsh").get("prompt")
-    theme_list = cli_user.get("zsh").get("theme")
-    plugin_list = cli_user.get("zsh").get("plugins")
+    prompt_list = cli_user.get("zsh").get("prompt") if cli_user.get("zsh").get("prompt") != None else []
+    theme_list = cli_user.get("zsh").get("theme") if cli_user.get("zsh").get("theme") != None else []
+    plugin_list = cli_user.get("zsh").get("plugins") if cli_user.get("zsh").get("plugins") != None else []
 
     additional_args = [
         f'export PATH="{system_path}:$PATH"',
@@ -251,9 +251,9 @@ if not os.path.exists(on_my_zsh_dir):
         ]
 
     # Run validation checks
-    set_prompt = cli_user.get("zsh").get("set_prompt")
-    set_theme = cli_user.get("zsh").get("set_theme")
     default_theme = "robbyrussell"
+    set_prompt = cli_user.get("zsh").get("set_prompt") if cli_user.get("zsh").get("set_prompt") != None else "none"
+    set_theme = cli_user.get("zsh").get("set_theme") if cli_user.get("zsh").get("set_theme") != None else default_theme
         
     if set_prompt in prompt_names or set_prompt == "none":
         log.info(f"ZSH prompt set to: '{set_prompt}'")
