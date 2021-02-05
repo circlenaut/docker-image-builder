@@ -312,8 +312,6 @@ def fnmatchcase(name, pat):
         _cache[pat] = re_pat = re.compile(res)
     return re_pat.match(name) is not None
 
-
-
 def translate(pat):
     """Translate a shell PATTERN to a regular expression.
     There is no way to quote meta-characters.
@@ -588,24 +586,6 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
 
                 if os.path.exists(dockerfile_path):
                     log.info(f"Building image: '{image_tag}' from '{dockerfile_path}'")
-#                    project_files = ["scripts", "files", "configs"]
-#                    for d in project_files:
-#                        src = os.path.join(project_dir, d)
-#                        dst = os.path.join(project_build_dir, d)
-#                        if os.path.exists(src):
-#                            log.info(f"Copying build files to root dir: '{d}'")
-#                            # Copy dockerfile "COPY" files
-#                            if os.path.exists(dst): 
-#                                shutil.rmtree(dst)
-#                                shutil.copytree(src, dst)
-#                                log.debug(f"setting ownership of '{dst}' to '{user}:{group}'")
-#                                chown(dst, user, group)
-#                                recursive_chown(dst, user, group)
-#                            else:
-#                                shutil.copytree(src, dst)
-#                                log.debug(f"setting ownership of '{dst}' to '{user}:{group}'")
-#                                chown(dst, user, group)
-#                                recursive_chown(dst, user, group)
 
                     ### Read dockerfile
                     df_lines = list()
@@ -764,7 +744,6 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     ### Remove residual project files
     if rm_build_files:
         for p in project_files:
-#            dst = os.path.join(project_build_dir, d)
             if os.path.exists(p):
                 log.info(f"removing: '{p}'")
                 if os.path.isdir(p):
