@@ -567,7 +567,6 @@ def main(opts, log_level, config, dryrun, gzip):
                             dockerfile_final.append(l.rstrip())
 
                     image_count+=1
-                    log.info(f"count: {image_count}")
 
                     s = '\n'
                     dockerfile_mod = s.join(df_lines)
@@ -623,6 +622,11 @@ def main(opts, log_level, config, dryrun, gzip):
     log.debug("Final dockerfile")
     log.debug(dockerfile_final)
 
+    ### Write final Dockerfile
+    dockerfile_final_path = os.path.join(project_build_dir, "Dockerfile")
+    log.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
+    with open(dockerfile_final_path, "w") as f: 
+        f.write(dockerfile_final)
 
 if __name__ == '__main__':
     ### Enable argument parsing
