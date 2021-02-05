@@ -106,24 +106,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN echo "**** installing docker sdk ****" \
     && pip3 install docker
 
-### Install Golang dev environment
-RUN echo "**** installing golang dev environment ****" \
-    && mkdir $BUILD_PATH"/golang" \
-    && cd $BUILD_PATH"/golang" \
-    && GO_VERSION=$(curl -sX GET https://golang.org/dl/ | grep -o '<span.*>.*linux-amd64.*</span>' | grep -oP '(?<=go).*(?=.linux)') \
-    && wget --quiet https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz -O ~/go.tgz \
-    && tar -C /usr/local -xzf ~/go.tgz \
-    && rm ~/go.tgz \
-    && echo "export PATH="/usr/local/go/bin:$PATH"" >> ~/.bashrc
-
-RUN rm -r $BUILD_PATH"/golang" \
-    # Fix permissions \
-    && fix-permissions.sh $HOME \
-    # Cleanup
-    && clean-layer.sh
-
-ENV GOPATH /go
-ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
-RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
 WORKDIR $BUILD_PATH

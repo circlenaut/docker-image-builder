@@ -1,0 +1,34 @@
+version: "0.1"
+
+info:
+    name: "registry.dev.proneer.co/dev-server"
+    tags:
+      - "v0.1"
+      - "latest"
+    maintainer: "Phillip Strefling"
+    email: "phillip@proneer.co"
+    organization: "Proneer Corp."
+    version: "0.1"
+    repository: "registry.dev.proneer.co"
+build:
+    base: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
+    projects:
+      - name: "base-gpu"
+        repository: "registry.dev.proneer.co"
+        tag: "latest"
+        directory: "base-gpu"
+        dockerfiles:
+          - file: "Dockerfile.base"
+            from: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
+            tag: "registry.dev.proneer.co/base-gpu:latest"
+      - name: "dev-server"
+        repository: "registry.dev.proneer.co"
+        tag: "latest"
+        directory: "dev-server"
+        dockerfiles:
+          - file: "Dockerfile.dev"
+            from: "registry.dev.proneer.co/base-gpu:latest"
+            tag: "registry.dev.proneer.co/dev-gpu:latest"
+          - file: "Dockerfile.vscode"
+            from: "registry.dev.proneer.co/dev-gpu:latest"
+            tag: "registry.dev.proneer.co/dev-server:latest"

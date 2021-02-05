@@ -1,0 +1,27 @@
+# Yamale Schema for build.py
+version: str(required=True)
+info: include('info_map', required=True)
+build: include('build_map', required=True)
+---
+info_map:
+    name: str(required=True)
+    tags: list(str(required=True), required=True)
+    maintainer: str(required=False)
+    email: str(required=False)
+    organization: str(required=False)
+    version: str(required=False)
+    repository: str(required=False)
+---
+build_map:
+    base: str(required=True)
+    projects: list(include('project_map', required=True), required=True)
+project_map:
+    name: str(required=True)
+    repository: str(required=True)
+    tag: str(required=True)
+    directory: str(required=True)
+    dockerfiles: list(include('dockerfile_map', required=True), required=True)
+dockerfile_map:
+    file: str(required=True)
+    from: str(required=True)
+    tag: str(required=True)
