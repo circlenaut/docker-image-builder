@@ -178,6 +178,91 @@ def recursive_chmod(path, mode):
                if not os.path.islink(file_path):
                     chmod(file_path, mode)
 
+def recursive_make_dir(path):
+    def make_forward(dest):
+        parent_dir = os.path.dirname(dest)
+        if os.path.exists(parent_dir):
+            # Get parent mode and permissions
+            stat_info = os.stat(parent_dir)
+            uid = stat_info.st_uid
+            gid = stat_info.st_gid
+            mask = str(oct(stat_info.st_mode)[-3:])
+            user = pwd.getpwuid(uid)[0]
+            group = grp.getgrgid(gid)[0]
+            # create dir and set permissions and mask
+            log.debug(f"creating: '{dest}' set to: '{user}:{group}:{mask}'")
+            os.mkdir(dest)
+            chown(dest, user, group)
+            chmod(dest, mask)
+        else:
+            log.error(f"parent directory does not exist! '{parent_dir}'")
+
+    path_elements = path.split(os.path.sep)
+    base = "/"
+    for e in path_elements:
+        path = os.path.join(base, e)
+        exists = os.path.exists(path)
+        base = path
+        if not exists:
+            make_forward(path)
+
+def copy_path(src, dst, overwrite=False):
+    def copy_dir(src, dst, user, group, mask):
+            shutil.copytree(src, dst)
+            recursive_chown(dst, user, group)     
+            recursive_chmod(dst, mask)
+            # also change root dir
+            chown(dst, user, group)
+            chmod(dst, mask)
+    def copy_file(src, dst, user, group, mask):
+            shutil.copy2(src, dst)
+            chown(dst, user, group)
+            chmod(dst, mask)
+    def copy_check(src, dst, overwrite, user, group, mask):
+        if os.path.isdir(src):
+            if os.path.exists(dst):
+                if overwrite:
+                    log.warning(f"removing directory and copying new: '{src}' --> '{dst}'")
+                    shutil.rmtree(dst)
+                    copy_dir(src, dst, user, group, mask)
+                else:
+                    log.warning(f"directory exists! skipping copy: '{dst}'")                                    
+            elif not os.path.exists(dst):
+                log.debug(f"copying: '{src}' --> '{dst}'")
+                copy_dir(src, dst, user, group, mask)      
+        elif os.path.isfile(src):
+            if os.path.exists(dst):
+                if overwrite:
+                    log.warning(f"removing file and copying new: '{src}' --> '{dst}'")
+                    os.remove(dst)
+                    copy_file(src, dst, user, group, mask)
+                else:
+                    log.warning(f"file exists! skipping copy: '{dst}'")
+            elif not os.path.exists(dst):
+                log.debug(f"copying: '{src}' --> '{dst}'")
+                copy_file(src, dst, user, group, mask)                      
+        else:
+            log.error(f"unknown path type: '{src}'")
+
+    if os.path.exists(src):
+        # Get permissions
+        stat_info = os.stat(src)
+        uid = stat_info.st_uid
+        gid = stat_info.st_gid
+        mask = str(oct(stat_info.st_mode)[-3:])
+        user = pwd.getpwuid(uid)[0]
+        group = grp.getgrgid(gid)[0]
+
+        dst_parent_dir = os.path.dirname(dst)
+        if os.path.exists(dst_parent_dir):
+            copy_check(src, dst, overwrite, user, group, mask)
+        elif not os.path.exists(dst_parent_dir):
+            recursive_make_dir(dst_parent_dir)
+            copy_check(src, dst, overwrite, user, group, mask)
+    else:
+        log.error(f"source path does not exist! '{src}', exiting")
+        sys.exit()
+
 def yaml_valid(schema, data, level):
     log.setLevel(level)
     try:
@@ -226,6 +311,8 @@ def fnmatchcase(name, pat):
             _cache.clear()
         _cache[pat] = re_pat = re.compile(res)
     return re_pat.match(name) is not None
+
+
 
 def translate(pat):
     """Translate a shell PATTERN to a regular expression.
@@ -294,7 +381,6 @@ def exclude_paths(root, patterns, dockerfile=None):
     patterns.append('!' + dockerfile)
     pm = PatternMatcher(patterns)
     return set(pm.walk(root))
-
 
 def decode_stream(line):
     ### Set clean logging
@@ -413,7 +499,7 @@ def makebuildcontext(path, fileobj, dockerfile, exclude=None, gzip=None):
     
     return f
 
-def main(opts, log_level, config, dryrun, gzip):
+def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     ### Enable docker API
     clients = docker.from_env()
     cli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -463,8 +549,8 @@ def main(opts, log_level, config, dryrun, gzip):
         log.warning(f"removing previous build directory: '{project_build_dir}'")
         shutil.rmtree(project_build_dir)
     else:
-        log.warning(f"creating build directory: '{project_build_dir}'")
-        os.makedirs(project_build_dir)
+        log.info(f"creating build directory: '{project_build_dir}'")
+        recursive_make_dir(project_build_dir)
         log.debug(f"setting ownership of '{project_build_dir}' to '{user}:{group}'")
         recursive_chown(project_build_dir, user, group)
 
@@ -473,22 +559,23 @@ def main(opts, log_level, config, dryrun, gzip):
     base_image = configs.get("build").get("base")
     projects = configs.get("build").get("projects")
 
+    ### Process Dockerfiles
     dockerfile_final = list()
-    ### Execute Dockerfiles
+    project_files = list()
     image_count = 0
     for p in projects:
+        ### Set full docker name
         name = p.get("name")
         repository = p.get("repository")
         tag = p.get("tag")
+        docker_path = f"{repository}/{name}:{tag}"
 
+        ### Store a list of Dockerfiles to process
         dockerfiles = list()
         for df in p.get("dockerfiles"):
             dockerfiles.append(df.get("file"))
 
-        # Set full name
-        docker_path = f"{repository}/{name}:{tag}"
-
-        # Scan project directories
+        ### Scan project directories
         project_dir = os.path.join(parent_dir, p.get("directory"))
            
         if os.path.exists(project_dir):
@@ -501,70 +588,127 @@ def main(opts, log_level, config, dryrun, gzip):
 
                 if os.path.exists(dockerfile_path):
                     log.info(f"Building image: '{image_tag}' from '{dockerfile_path}'")
-                    project_files = ["scripts", "files", "configs"]
-                    for d in project_files:
-                        src = os.path.join(project_dir, d)
-                        dst = os.path.join(project_build_dir, d)
-                        if os.path.exists(src):
-                            log.info(f"Copying build files to root dir: '{d}'")
-                            # Copy dockerfile "COPY" files
-                            if os.path.exists(dst): 
-                                shutil.rmtree(dst)
-                                shutil.copytree(src, dst)
-                                log.debug(f"setting ownership of '{dst}' to '{user}:{group}'")
-                                chown(dst, user, group)
-                                recursive_chown(dst, user, group)
-                            else:
-                                shutil.copytree(src, dst)
-                                log.debug(f"setting ownership of '{dst}' to '{user}:{group}'")
-                                chown(dst, user, group)
-                                recursive_chown(dst, user, group)
+#                    project_files = ["scripts", "files", "configs"]
+#                    for d in project_files:
+#                        src = os.path.join(project_dir, d)
+#                        dst = os.path.join(project_build_dir, d)
+#                        if os.path.exists(src):
+#                            log.info(f"Copying build files to root dir: '{d}'")
+#                            # Copy dockerfile "COPY" files
+#                            if os.path.exists(dst): 
+#                                shutil.rmtree(dst)
+#                                shutil.copytree(src, dst)
+#                                log.debug(f"setting ownership of '{dst}' to '{user}:{group}'")
+#                                chown(dst, user, group)
+#                                recursive_chown(dst, user, group)
+#                            else:
+#                                shutil.copytree(src, dst)
+#                                log.debug(f"setting ownership of '{dst}' to '{user}:{group}'")
+#                                chown(dst, user, group)
+#                                recursive_chown(dst, user, group)
 
-                    # Read dockerfile
+                    ### Read dockerfile
                     df_lines = list()
                     with open(dockerfile_path) as f:
                         lines = f.readlines()
 
-                    # Set from image specified in config
+                    ### Set from image specified in config
                     dockerfile_from = image.get("from")
                     dockerfile_entrypoint = str()
                     dockerfile_cmd = str()
                     
-                    # Modify file
+                    ### Modify Dockerfile
+                    copy_elements = list()
+                    cont_count = 0
+                    list_files = False
                     for l in lines:
+                        # Get list of files formated as ["file1", "file2"]
+                        if l.isspace():
+                            continue
+                        copy_chars = list()
                         skip_line = False
                         words = l.split()
-                        for w in words:
-                            if w == "FROM":
-                                if image_count == 0:
-                                    log.info(f"Base image: '{dockerfile_from}'")
-                                    dockerfile_final.append(f"FROM {dockerfile_from} \n")
-                                    df_lines.append(f"FROM {dockerfile_from} \n")
-                                else:
-                                    df_lines.append(f"FROM {dockerfile_from} \n")
-                                skip_line = True
+                        
+                        copy_count = 0
+                        num_words = len(words)
+                        element = list()
+                        if words[0] == "COPY":
+                            for c in l:
+                                if c == '[':
+                                    list_files = True
+                                    skip_line = True
+                                elif c == '"' or c == ' ':
+                                    continue
+                                elif c == ']':
+                                    list_files = False
+                                elif list_files:
+                                    if c == ',':
+                                        copy_elements.append("".join(element))
+                                        element = list()
+                                    else:
+                                        element.append(c)
+                        # Get list of files seperated by spaces and spanning lines
+                        if not skip_line:
+                            for w in words:
+                                if cont_count > 0:
+                                    if not w == "\\": 
+                                        copy_elements.append(w)
+                                        cont_count+=1
+                                    if words[num_words-1] == "\\":
+                                        continue
+                                    else:
+                                        copy_elements.pop()
+                                        cont_count = 0                              
+                                if w == "COPY":
+                                    copy_length = range(num_words)
+                                    # Add every element except first and last to copy list
+                                    for e in copy_length:
+                                        if words[e] == "\\":
+                                            cont_count+=1                            
+                                        if copy_count == (num_words-2):
+                                            continue
+                                        else:
+                                            copy_elements.append(words[e+1])
+                                            copy_count+=1
+                                            cont_count = 0
+                                if w == "FROM":
+                                    if image_count == 0:
+                                        log.debug(f"Base image: '{dockerfile_from}'")
+                                        dockerfile_final.append(f"FROM {dockerfile_from} \n")
+                                        df_lines.append(f"FROM {dockerfile_from} \n")
+                                    else:
+                                        df_lines.append(f"FROM {dockerfile_from} \n")
+                                    skip_line = True
+                                    continue
+                                if w == "ENTRYPOINT":
+                                    if image_count == total_images:
+                                        log.debug(f"Image entrypoint: '{l.rstrip()}'")
+                                        dockerfile_entrypoint = l.rstrip()
+                                        dockerfile_final.append(f"{dockerfile_entrypoint} \n")
+                                        df_lines.append(f"{dockerfile_entrypoint} \n")
+                                    skip_line = True
+                                    continue
+                                if w == "CMD":
+                                    if image_count == total_images:
+                                        log.debug(f"Image command: '{l.rstrip()}'")
+                                        dockerfile_cmd = l.rstrip()
+                                        dockerfile_final.append(f"CMD {dockerfile_cmd} \n")
+                                        df_lines.append(f"{dockerfile_cmd} \n")
+                                    skip_line = True
+                                    continue
+                            if skip_line:
                                 continue
-                            if w == "ENTRYPOINT":
-                                if image_count == total_images:
-                                    log.info(f"Image entrypoint: '{l.rstrip()}'")
-                                    dockerfile_entrypoint = l.rstrip()
-                                    dockerfile_final.append(f"{dockerfile_entrypoint} \n")
-                                    df_lines.append(f"{dockerfile_entrypoint} \n")
-                                skip_line = True
-                                continue
-                            if w == "CMD":
-                                if image_count == total_images:
-                                    log.info(f"Image command: '{l.rstrip()}'")
-                                    dockerfile_cmd = l.rstrip()
-                                    dockerfile_final.append(f"CMD {dockerfile_cmd} \n")
-                                    df_lines.append(f"{dockerfile_cmd} \n")
-                                skip_line = True
-                                continue
-                        if skip_line:
-                            continue
-                        else:
-                            df_lines.append(l.rstrip())
-                            dockerfile_final.append(l.rstrip())
+                            else:
+                                df_lines.append(l.rstrip())
+                                dockerfile_final.append(l.rstrip())
+                    
+                    # copy image files
+                    for e in copy_elements:
+                        src = os.path.join(project_dir, e)
+                        dst = os.path.join(project_build_dir, e)
+                        copy_path(src, dst, overwrite)
+                        project_files.append(dst)
+                    project_files.append(project_build_dir)
 
                     image_count+=1
 
@@ -603,11 +747,6 @@ def main(opts, log_level, config, dryrun, gzip):
 #                     labels (dict): A dictionary of labels to set on the image
 #                     cache_from (:py:class:`list`): A list of images used for build cache resolution
 
-    #                for d in project_files:
-    #                    dst = os.path.join(project_build_dir, d)
-    #                    if os.path.exists(dst):
-    #                        log.info(f"removing build files in root dir: '{d}'")
-    #                        shutil.rmtree(dst)
 
 #                     container = clients.containers.get("pod2-colab")
 #                     container_name = container.name
@@ -615,8 +754,24 @@ def main(opts, log_level, config, dryrun, gzip):
 
                 else:
                     log.error(f"Dockerfile does not exists: '{dockerfile_path}")
+                    sys.exit()
         else:
             log.error(f"Project dir does not exists: '{project_dir}")
+            sys.exit()
+
+    project_files.append(build_dir)
+
+    ### Remove residual project files
+    if rm_build_files:
+        for p in project_files:
+#            dst = os.path.join(project_build_dir, d)
+            if os.path.exists(p):
+                log.info(f"removing: '{p}'")
+                if os.path.isdir(p):
+                    shutil.rmtree(p)
+                elif os.path.isfile(p):
+                    os.remove(p)
+            
     s = '\n'
     dockerfile_final = s.join(dockerfile_final)
     log.debug("Final dockerfile")
@@ -624,9 +779,10 @@ def main(opts, log_level, config, dryrun, gzip):
 
     ### Write final Dockerfile
     dockerfile_final_path = os.path.join(project_build_dir, "Dockerfile")
-    log.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
-    with open(dockerfile_final_path, "w") as f: 
-        f.write(dockerfile_final)
+    if not rm_build_files:
+        log.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
+        with open(dockerfile_final_path, "w") as f: 
+            f.write(dockerfile_final)
 
 if __name__ == '__main__':
     ### Enable argument parsing
@@ -636,6 +792,8 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='default', required=True, help="Location of build YAML file")
     parser.add_argument('--dryrun', action='store_true', default=False, required=False, help='Execute as a dry run')
     parser.add_argument('--gzip', action='store_true', default=False, required=False, help='Compress context files')
+    parser.add_argument('--overwrite', action='store_true', default=False, required=False, help='Overwrite existing build files')
+    parser.add_argument('--rm_build_files', action='store_true', default=False, required=False, help='Overwrite existing build files')
 
     args, unknown = parser.parse_known_args()
     if unknown:
