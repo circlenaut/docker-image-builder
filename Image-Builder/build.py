@@ -40,6 +40,7 @@ import json
 import docker
 import argparse
 import logging
+import coloredlogs
 import shutil
 import tarfile
 import tempfile
@@ -153,7 +154,51 @@ class Pattern(object):
     def match(self, filepath):
         return fnmatch(normalize_slashes(filepath), self.cleaned_pattern)
 
+class Logger(object):
+    def __init__(self):
+        self.log = logging.getLogger(__name__)
+        self.log.setLevel(args.log_level.upper())
+        fh = logging.FileHandler("build.log")
+        self.log.addHandler(fh)
+    def config(self, format, level, stream, filename):
+        self.logging = logging.basicConfig(
+            format='%(asctime)s [%(levelname)s] %(message)s', 
+            level=logging.INFO, 
+            stream=sys.stdout
+            #handlers=[
+            #    logging.FileHandler("build.log"),
+            #    logging.StreamHandler(stream=sys.stdout)
+            #]
+        )
+        #touch(filename)
+        self.filename = filename
+    def debug(self, cmd):
+        self.debug = self.log.debug(cmd)
+    def info(self, cmd):
+        self.info = self.log.info(cmd)
+    def warning(self, cmd):
+        self.warning = self.log.warning(cmd)
+    def error(self, cmd):
+        self.error = self.log.error(cmd)
+    def critical(self, cmd):
+        self.critical = self.log.critical(cmd)
+
 ### Define functions
+def touch(path):
+    def _fullpath(path):
+        return os.path.abspath(os.path.expanduser(path))
+    def _mkdir(path):
+        if path.find("/") > 0 and not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+    def _utime(path):
+        try:
+            os.utime(path, None)
+        except Exception:
+            open(path, 'a').close()
+    path = _fullpath(path)
+    _mkdir(path)
+    _utime(path)
+
 def chown(path, user, group):
      shutil.chown(path, user, group)
 
@@ -381,17 +426,8 @@ def exclude_paths(root, patterns, dockerfile=None):
     return set(pm.walk(root))
 
 def decode_stream(line):
-    ### Set clean logging
-#    logging.basicConfig(
-#        format='', 
-#        level=logging.INFO, 
-#        stream=sys.stdout)
-#    logger = logging.getLogger(__name__)
-#    logger.setLevel("INFO")
-
     clean_line = json.loads(line.decode("utf-8").rstrip()).get("stream")
     if clean_line != None and not clean_line.isspace():
-#        logger.info(clean_line.rstrip())
         log.debug(clean_line.rstrip())
 
 def process_dockerfile(dockerfile, path):
@@ -782,12 +818,40 @@ if __name__ == '__main__':
     logging.basicConfig(
         format='%(asctime)s [%(levelname)s] %(message)s', 
         level=logging.INFO, 
-        stream=sys.stdout)
+        stream=sys.stdout
+    )
 
     log = logging.getLogger(__name__)
 
     # Set log level
     log.setLevel(args.log_level.upper())
+
+    # Setup colored console logs
+    coloredlogs.install()
+
+    # Setup filesystem logging
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "build.log")
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    fh = logging.FileHandler(log_path)
+    # Set default log level to debug
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    log.addHandler(fh)
+
+    ### Set custom Logger
+#    logger = Logger()
+#    logger.config(
+#        format='%(asctime)s [%(levelname)s] %(message)s', 
+#        level=logging.INFO, 
+#        stream=sys.stdout,
+#        filename="build.log"
+#    )
+
+#    logger.debug("debug")
+#    logger.info("info")
+#    logger.warning("warning")
+#    logger.error("error")
+#    logger.critical("critical")
     
     log.info("Starting docker builder")
 
