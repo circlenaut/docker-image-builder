@@ -820,15 +820,11 @@ if __name__ == '__main__':
         level=logging.INFO, 
         stream=sys.stdout
     )
-
     log = logging.getLogger(__name__)
-
     # Set log level
     log.setLevel(args.log_level.upper())
-
     # Setup colored console logs
-    coloredlogs.install()
-
+    coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=args.log_level.upper(), logger=log)
     # Setup filesystem logging
     log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "build.log")
     formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
