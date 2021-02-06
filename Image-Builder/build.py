@@ -553,6 +553,7 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     stat_info = os.stat(work_dir)
     uid = stat_info.st_uid
     gid = stat_info.st_gid
+    mask = str(oct(stat_info.st_mode)[-3:])
     user = pwd.getpwuid(uid)[0]
     group = grp.getgrgid(gid)[0]
 
@@ -576,19 +577,20 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     ### Set relative paths
     build_dir =  os.path.join(work_dir, "build")
     log.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
-    recursive_chown(build_dir, user, group)
-
     project_build_dir = os.path.join(build_dir, os.path.basename(configs.get("info").get("name")))
-    if os.path.exists(project_build_dir):
-        log.warning(f"removing previous build directory: '{project_build_dir}'")
-        shutil.rmtree(project_build_dir)
-    else:
-        log.info(f"creating build directory: '{project_build_dir}'")
-        recursive_make_dir(project_build_dir)
-        log.debug(f"setting ownership of '{project_build_dir}' to '{user}:{group}'")
-        recursive_chown(project_build_dir, user, group)
+
+    log.info(f"creating build directory: '{project_build_dir}'")
+    recursive_make_dir(project_build_dir)
+    log.debug(f"setting ownership of '{project_build_dir}' to '{user}:{group}'")
 
     log_file = os.path.join(project_build_dir, 'build.log')
+    # Setup filesystem logging
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    fh = logging.FileHandler(log_file)
+    # Set default log level to debug
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    log.addHandler(fh)
 
     base_image = configs.get("build").get("base")
     projects = configs.get("build").get("projects")
@@ -724,6 +726,9 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
                         dst = os.path.join(project_build_dir, e)
                         copy_path(src, dst, overwrite)
                         project_files.append(dst)
+                    
+                    # Track log file and project build directory
+                    project_files.append(log_file)
                     project_files.append(project_build_dir)
 
                     image_count+=1
@@ -776,16 +781,6 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
             sys.exit()
 
     project_files.append(build_dir)
-
-    ### Remove residual project files
-    if rm_build_files:
-        for p in project_files:
-            if os.path.exists(p):
-                log.info(f"removing: '{p}'")
-                if os.path.isdir(p):
-                    shutil.rmtree(p)
-                elif os.path.isfile(p):
-                    os.remove(p)
             
     s = '\n'
     dockerfile_final = s.join(dockerfile_final)
@@ -798,6 +793,24 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
         log.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
         with open(dockerfile_final_path, "w") as f: 
             f.write(dockerfile_final)
+    # Track Dockerfile
+    project_files.append(dockerfile_final_path)
+    # Fix Dockerfile permissions
+    chown(dockerfile_final_path, user, group)
+    chmod(dockerfile_final_path, "664")
+    # Fix log file permissions
+    chown(log_file, user, group)
+    chmod(log_file, "664")
+
+    ### Remove residual project files
+    if rm_build_files:
+        for p in project_files:
+            if os.path.exists(p):
+                log.info(f"removing: '{p}'")
+                if os.path.isdir(p):
+                    shutil.rmtree(p)
+                elif os.path.isfile(p):
+                    os.remove(p)
 
 if __name__ == '__main__':
     ### Enable argument parsing
@@ -825,14 +838,6 @@ if __name__ == '__main__':
     log.setLevel(args.log_level.upper())
     # Setup colored console logs
     coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=args.log_level.upper(), logger=log)
-    # Setup filesystem logging
-    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "build.log")
-    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-    fh = logging.FileHandler(log_path)
-    # Set default log level to debug
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    log.addHandler(fh)
 
     ### Set custom Logger
 #    logger = Logger()
