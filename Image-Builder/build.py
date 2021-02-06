@@ -579,18 +579,21 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     log.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
     project_build_dir = os.path.join(build_dir, os.path.basename(configs.get("info").get("name")))
 
-    log.info(f"creating build directory: '{project_build_dir}'")
-    recursive_make_dir(project_build_dir)
-    log.debug(f"setting ownership of '{project_build_dir}' to '{user}:{group}'")
+    if dryrun:
+        log.info(f"Dry run: creating build directory: '{project_build_dir}'")
+    elif not dryrun:
+        log.info(f"creating build directory: '{project_build_dir}'")
+        recursive_make_dir(project_build_dir)
 
     log_file = os.path.join(project_build_dir, 'build.log')
     # Setup filesystem logging
-    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-    fh = logging.FileHandler(log_file)
-    # Set default log level to debug
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    log.addHandler(fh)
+    if not dryrun:
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+        fh = logging.FileHandler(log_file)
+        # Set default log level to debug
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        log.addHandler(fh)
 
     base_image = configs.get("build").get("base")
     projects = configs.get("build").get("projects")
@@ -724,7 +727,10 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
                     for e in copy_elements:
                         src = os.path.join(project_dir, e)
                         dst = os.path.join(project_build_dir, e)
-                        copy_path(src, dst, overwrite)
+                        if dryrun:
+                            log.debug(f"Dry run: copying: '{src}' --> '{dst}'")
+                        elif not dryrun:
+                            copy_path(src, dst, overwrite)
                         project_files.append(dst)
                     
                     # Track log file and project build directory
@@ -757,9 +763,10 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
                  
                     dockerfile_obj = makebuildcontext(project_dir, dockerfile_encoded, dockerfile_processed, docker_exclude, gzip)     
 
-                    [decode_stream(line) for line in cli.build(
-                        fileobj=dockerfile_obj, rm=True, tag=image_tag, custom_context=True
-                    )]
+                    if not dryrun:
+                        [decode_stream(line) for line in cli.build(
+                            fileobj=dockerfile_obj, rm=True, tag=image_tag, custom_context=True
+                        )]
 
 #                     quiet (bool): Whether to return the status
 #                     pull (bool): Downloads any updates to the FROM image in Dockerfiles
@@ -789,28 +796,30 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
 
     ### Write final Dockerfile
     dockerfile_final_path = os.path.join(project_build_dir, "Dockerfile")
-    if not rm_build_files:
+    if dryrun:
+        log.info(f"Dry run: Writing final Dockerfile to: '{dockerfile_final_path}")
+    if not dryrun:
         log.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
         with open(dockerfile_final_path, "w") as f: 
             f.write(dockerfile_final)
-    # Track Dockerfile
-    project_files.append(dockerfile_final_path)
-    # Fix Dockerfile permissions
-    chown(dockerfile_final_path, user, group)
-    chmod(dockerfile_final_path, "664")
-    # Fix log file permissions
-    chown(log_file, user, group)
-    chmod(log_file, "664")
+        # Track Dockerfile
+        project_files.append(dockerfile_final_path)
+        # Fix Dockerfile permissions
+        chown(dockerfile_final_path, user, group)
+        chmod(dockerfile_final_path, "664")
+        # Fix log file permissions
+        chown(log_file, user, group)
+        chmod(log_file, "664")
 
-    ### Remove residual project files
-    if rm_build_files:
-        for p in project_files:
-            if os.path.exists(p):
-                log.info(f"removing: '{p}'")
-                if os.path.isdir(p):
-                    shutil.rmtree(p)
-                elif os.path.isfile(p):
-                    os.remove(p)
+        ### Remove residual project files
+        if rm_build_files:
+            for p in project_files:
+                if os.path.exists(p):
+                    log.info(f"removing: '{p}'")
+                    if os.path.isdir(p):
+                        shutil.rmtree(p)
+                    elif os.path.isfile(p):
+                        os.remove(p)
 
 if __name__ == '__main__':
     ### Enable argument parsing
