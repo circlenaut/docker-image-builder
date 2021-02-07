@@ -17,11 +17,13 @@ build_map:
     projects: list(include('project_map', required=True), required=True)
 project_map:
     name: str(required=True)
-    repository: str(required=True)
-    tag: str(required=True)
     directory: str(required=True)
     dockerfiles: list(include('dockerfile_map', required=True), required=True)
 dockerfile_map:
     file: str(required=True)
-    from: str(required=True)
-    tag: str(required=True)
+    repository: str(required=False)
+    name: str(required=True)
+    tag: str(required=False)
+    push: str(required=False)
+    from: str(required=False)
+    

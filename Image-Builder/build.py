@@ -37,6 +37,7 @@ import pwd
 import yaml
 import yamale
 import json
+import enum
 import docker
 import argparse
 import logging
@@ -44,6 +45,9 @@ import coloredlogs
 import shutil
 import tarfile
 import tempfile
+from math import floor
+from time import time, sleep
+from tqdm import tqdm, trange
 from urllib.parse import quote, urljoin
 from subprocess   import run, call
 
@@ -183,7 +187,165 @@ class Logger(object):
     def critical(self, cmd):
         self.critical = self.log.critical(cmd)
 
+class PushStatus(object):
+    def __init__(self):
+        self.tracker = list()
+        self.layer = dict()
+        self.progress_tracker = dict()
+        self.num_trackers = list()
+        self.num_identities = list()
+        self.pbar = dict()
+        self.transfer_tracker = dict()
+        self.time_tracker = dict()
+
+    def store(self, progress):
+        for status in self.tracker:
+            if status.get("id") != None:
+                self.layer[status.get("id")] = None
+            for i in self.layer.keys():
+                if i == status.get("id"):
+                    if self.progress_tracker.get(status.get("id")) == None:
+                        self.progress_tracker[status.get("id")] = list()
+                    else:
+                        self.progress_tracker[status.get("id")].append({status.get("status"): status.get("progressDetail")})
+        
+        status_types = dict()
+        self.identities = list()
+        transfer_progress = dict()
+        transfer_totals = dict()
+        for idn, progressDetail in self.progress_tracker.items():
+            latest = len(progressDetail) - 1
+            self.identities.append(idn)
+            if transfer_progress.get(idn) == None:
+                transfer_progress[idn] = dict()   
+                transfer_totals[idn] = dict()        
+            if len(progressDetail) > 1:
+                progress_status = list(progressDetail[latest-1].keys())[0]
+                status_types[progress_status] = None
+                if progressDetail[latest] != {}:
+#                    if progressDetail[latest].get("Preparing") != None:
+#                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
+#                    elif progressDetail[latest].get("Waiting") != None:
+#                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
+#                    elif progressDetail[latest].get("Layer already exists") != None:
+#                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
+                    if progressDetail[latest].get("Pushing") != None:
+                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
+                        if progressDetail[latest].get(progress_status) != None:
+                            transfer_totals[idn] = {idn: progressDetail[latest].get(progress_status).get("total")}
+#                    elif progressDetail[latest].get("Pushed") != None:
+#                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
+#                    else:
+#                        log.info(f" {idn} - Unknown status")
+
+        self.num_trackers.append(len(transfer_totals))
+        self.num_identities.append(len(self.identities))
+
+        t_trak = 0
+        total_trackers = int()
+        num_pbars = int()
+        for t in self.num_trackers:
+            if t > t_trak:
+                t_trak = t
+            elif t == t_trak:
+                total_trackers = t_trak
+
+        t_iden = 0
+        l_num_iden = len(self.num_identities)
+        total_identities = int()
+        for t in self.num_identities:
+
+            if t > t_iden:
+                t_iden = t
+            elif t == t_iden:
+                total_identities = t_trak
+
+        if "Pushing" in list(status_types.keys()):
+            pushing = True
+        else:
+            pushing = False
+            
+        if pushing:
+            for idnt in self.identities:
+                status = transfer_progress.get(idnt).get("status")
+                detail = transfer_progress.get(idnt).get("detail")
+                epoch = int(time())
+                max_time = 3600
+                transfer_diff = int()
+#                if status in ["Preparing", "Waiting", "Layer already exists", "Pushed"]:
+#                    if not self.time_tracker.get(idnt):
+#                        self.time_tracker[idnt] = [epoch]
+#                    else:
+#                        self.time_tracker[idnt].append(epoch)
+#                        epoch_position = len(self.time_tracker[idnt]) - 1
+#                        epoch_latest = self.time_tracker[idnt][epoch_position]
+#                        epoch_previous = self.time_tracker[idnt][epoch_position - 1]
+#                        epoch_diff = epoch_latest - epoch_previous
+#                    if not self.pbar.get(idnt):
+#                        if status == "Preparing":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')
+#                        elif status == "Waiting":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')
+#                        elif status == "Layer already exists":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')     
+#                        elif status == "Pushed":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')               
+#                        else:
+#                            self.pbar[idnt] = trange(1)
+#                    else:
+#                       self.pbar[idnt].set_description(f"{idnt}: {status}")
+#                       self.pbar[idnt].update(epoch_diff)
+                if status == "Pushing":
+                    if not transfer_progress.get(idnt).get("detail") == None:
+                        if not transfer_progress.get(idnt).get("detail").get("total") == None:
+                            #total = convert_bytes(transfer_progress.get(idnt).get("detail").get("total"))
+                            #transfer = convert_bytes(transfer_progress.get(idnt).get("detail").get("current"))
+                            total = transfer_progress.get(idnt).get("detail").get("total")
+                            transfer = transfer_progress.get(idnt).get("detail").get("current")
+                        else:
+                            total = 0
+                            transfer = 0
+                    else:
+                        total = 0
+                        transfer = 0
+                    if not self.transfer_tracker.get(idnt):
+                        self.transfer_tracker[idnt] = [0]
+                    else:
+                        self.transfer_tracker[idnt].append(transfer)
+                        transfer_position = len(self.transfer_tracker[idnt]) - 1
+                        transfer_latest = self.transfer_tracker[idnt][transfer_position]
+                        transfer_previous = self.transfer_tracker[idnt][transfer_position - 1]
+                        #transfer_diff = convert_bytes(transfer_latest - transfer_previous)
+                        transfer_diff = transfer_latest - transfer_previous
+                    if not self.pbar.get(idnt):
+                        log.info(transfer_progress.get(idnt).get("detail"))
+                        self.pbar[idnt] = trange(total, unit=" bytes", bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} bytes [{elapsed}<{remaining}, {rate_fmt}]')
+                    else:
+                        if transfer >= total:
+                            self.pbar[idnt].close()
+                        elif transfer < total:
+                            self.pbar[idnt].set_description(f"{idnt}: {status}")
+                            self.pbar[idnt].update(transfer_diff)
+        self.tracker.append(progress)
+
+    def set_image(self, name):
+        self.image = name
+
 ### Define functions
+def convert_bytes(bytes_number):
+    tags = [ "Byte", "Kilobyte", "Megabyte", "Gigabyte", "Terabyte" ]
+ 
+    i = 0
+    double_bytes = bytes_number
+ 
+    while (i < len(tags) and  bytes_number >= 1024):
+            double_bytes = bytes_number / 1024.0
+            i = i + 1
+            bytes_number = bytes_number / 1024
+ 
+    #return str(round(double_bytes, 2)) + " " + tags[i]
+    return int(round(double_bytes, 1))
+
 def touch(path):
     def _fullpath(path):
         return os.path.abspath(os.path.expanduser(path))
@@ -533,7 +695,7 @@ def makebuildcontext(path, fileobj, dockerfile, exclude=None, gzip=None):
     
     return f
 
-def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
+def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_build_files):
     ### Enable docker API
     clients = docker.from_env()
     cli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -579,14 +741,18 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     log.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
     project_build_dir = os.path.join(build_dir, os.path.basename(configs.get("info").get("name")))
 
+    # Set main repository
+    main_repository = repository if repository else configs.get("info").get("repository")
+
+    # Create build directory
     if dryrun:
         log.info(f"Dry run: creating build directory: '{project_build_dir}'")
     elif not dryrun:
         log.info(f"creating build directory: '{project_build_dir}'")
         recursive_make_dir(project_build_dir)
 
-    log_file = os.path.join(project_build_dir, 'build.log')
     # Setup filesystem logging
+    log_file = os.path.join(project_build_dir, 'build.log')
     if not dryrun:
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
         fh = logging.FileHandler(log_file)
@@ -595,6 +761,7 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
         fh.setFormatter(formatter)
         log.addHandler(fh)
 
+    # Define project
     base_image = configs.get("build").get("base")
     projects = configs.get("build").get("projects")
 
@@ -602,12 +769,8 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
     dockerfile_final = list()
     project_files = list()
     image_count = 0
+    push_tracker = PushStatus()
     for p in projects:
-        ### Set full docker name
-        name = p.get("name")
-        repository = p.get("repository")
-        tag = p.get("tag")
-        docker_path = f"{repository}/{name}:{tag}"
 
         ### Store a list of Dockerfiles to process
         dockerfiles = list()
@@ -623,7 +786,14 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
             total_images = len(p.get("dockerfiles"))
             for image in p.get("dockerfiles"):
                 dockerfile_path = os.path.join(project_dir, image.get("file"))
-                image_tag = image.get("tag")
+                # Get Dockerfile properties
+                image_repository = main_repository if main_repository else image.get("repository")
+                image_name = image.get("name")
+                image_tag = image.get("tag") if image.get("tag") else "latest"
+                image_push = True if push or image.get("push").lower() == "true" else False
+
+                # Set image Docker path
+                image_docker_path = f"{image_repository}/{image_name}:{image_tag}"
 
                 if os.path.exists(dockerfile_path):
                     log.info(f"Building image: '{image_tag}' from '{dockerfile_path}'")
@@ -713,7 +883,7 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
                                     if image_count == total_images:
                                         log.debug(f"Image command: '{l.rstrip()}'")
                                         dockerfile_cmd = l.rstrip()
-                                        dockerfile_final.append(f"CMD {dockerfile_cmd} \n")
+                                        dockerfile_final.append(f"{dockerfile_cmd} \n")
                                         df_lines.append(f"{dockerfile_cmd} \n")
                                     skip_line = True
                                     continue
@@ -765,20 +935,15 @@ def main(opts, log_level, config, dryrun, gzip, overwrite, rm_build_files):
 
                     if not dryrun:
                         [decode_stream(line) for line in cli.build(
-                            fileobj=dockerfile_obj, rm=True, tag=image_tag, custom_context=True
+                            fileobj=dockerfile_obj, rm=True, tag=image_docker_path, custom_context=True
                         )]
-
-#                     quiet (bool): Whether to return the status
-#                     pull (bool): Downloads any updates to the FROM image in Dockerfiles
-#                     buildargs (dict): A dictionary of build arguments
-#                     container_limits (dict): A dictionary of limits applied to each
-#                     labels (dict): A dictionary of labels to set on the image
-#                     cache_from (:py:class:`list`): A list of images used for build cache resolution
-
-
-#                     container = clients.containers.get("pod2-colab")
-#                     container_name = container.name
-#                     log.info(container_name)
+                        
+                        log.info(f"Pushing: '{image_docker_path}'")
+                        push_tracker.set_image(image_docker_path)
+                        if image_push:
+                            [push_tracker.store(line) for line in cli.push(
+                                image_docker_path, stream=True, decode=True
+                            )]
 
                 else:
                     log.error(f"Dockerfile does not exists: '{dockerfile_path}")
@@ -827,14 +992,12 @@ if __name__ == '__main__':
     parser.add_argument('--opts', type=json.loads, help='Set script arguments')
     parser.add_argument('--log_level', choices=('debug', 'info', 'warning', 'error', 'critical'), default='info', const='info', nargs='?', required=False, help='Set script log level of verbosity')
     parser.add_argument('--config', type=str, default='default', required=True, help="Location of build YAML file")
+    parser.add_argument('--push', action='store_true', default=False, required=False, help="Push images to repositoy")
+    parser.add_argument('--repository', type=str, default='', required=False, help="Repository to push to")
     parser.add_argument('--dryrun', action='store_true', default=False, required=False, help='Execute as a dry run')
     parser.add_argument('--gzip', action='store_true', default=False, required=False, help='Compress context files')
     parser.add_argument('--overwrite', action='store_true', default=False, required=False, help='Overwrite existing build files')
     parser.add_argument('--rm_build_files', action='store_true', default=False, required=False, help='Overwrite existing build files')
-
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        log.error("Unknown arguments " + str(unknown))
 
     ### Enable logging
     logging.basicConfig(
@@ -843,11 +1006,17 @@ if __name__ == '__main__':
         stream=sys.stdout
     )
     log = logging.getLogger(__name__)
+
+    args, unknown = parser.parse_known_args()
+    if unknown:
+        log.error("Unknown arguments " + str(unknown))
+        sys.exit()
+
     # Set log level
     log.setLevel(args.log_level.upper())
     # Setup colored console logs
     coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=args.log_level.upper(), logger=log)
-
+        
     ### Set custom Logger
 #    logger = Logger()
 #    logger.config(
