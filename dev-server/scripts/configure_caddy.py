@@ -9,6 +9,7 @@ import sys
 import json
 import bcrypt
 import logging
+import coloredlogs
 import argparse
 from urllib.parse import quote, urljoin
 from subprocess   import run, call
@@ -42,6 +43,8 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 ### Get envs
 proxy_base_url = cli_env.get("PROXY_BASE_URL")
@@ -57,12 +60,6 @@ caddy_letsencrypt_endpoint = cli_env.get("CADDY_LETSENCRYPT_ENDPOINT")
 caddy_http_port = cli_env.get("CADDY_HTTP_PORT")
 caddy_https_port = cli_env.get("CADDY_HTTPS_PORT")
 caddy_auto_https = cli_env.get("CADDY_AUTO_HTTPS")
-#fb_port = cli_env.get("FB_PORT")
-#fb_base_url = cli_env.get("FB_BASE_URL")
-#vscode_bind_addr = cli_env.get("VSCODE_BIND_ADDR")
-#vscode_base_url = cli_env.get("VSCODE_BASE_URL")
-#app_bind_addr = cli_env.get("APP_BIND_ADDR")
-#app_base_url = cli_env.get("APP_BASE_URL")
 fb_port = cli_user.get("filebrowser").get("port")
 fb_base_url = cli_user.get("filebrowser").get("base_url")
 vscode_bind_addr = cli_user.get("vscode").get("bind_addr")
@@ -161,7 +158,7 @@ service_settings = [vscode_settings, filebrowser_settings, app_settings]
 subroutes = list()
 for service in service_settings:
     service_base_url = urljoin(host_base_url, service.get("base_url"))
-    full_base_url = urljoin(proxy_base_url, service_base_url)
+    full_base_url = urljoin(proxy_base_url, service_base_url) if service_base_url != "/" else ""
     log.info("{name} base url: '{url}'".format(name=service.get("name"), url=full_base_url))
 
     encodings = dict()

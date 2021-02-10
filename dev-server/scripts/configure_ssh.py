@@ -7,6 +7,7 @@ Configure user ssh service
 import os
 import sys
 import logging
+import coloredlogs
 import argparse
 import json
 from subprocess import run
@@ -40,19 +41,51 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 # Get user settings
 user_name = cli_user.get("name")
 user_group = cli_user.get("group")
 user_home = cli_user.get("dirs").get("home").get("path")
 pub_keys = cli_user.get("ssh").get("pub_keys")
+configs = cli_user.get("ssh").get("configs")
 
+# Set root user
 root_user = "root"
 root_group = "root"
 
 ### Set global envs
 os.environ['USER'] = user_name
 os.environ['HOME'] = user_home
+
+### Setup config file
+config_file = os.path.join(user_home, ".ssh", "config")
+
+cfg_opts = {
+    'hostname': 'Hostname',
+    'port': 'Port',
+    'user': 'User',
+    'pub_key_auth': 'PubkeyAuthentication',
+    'id_only': 'IdentitiesOnly',
+    'id_file_path': 'IdentityFile'
+}
+if configs != None:
+    for cfg in configs:
+        if cfg.get("hostname") != None or not cfg.get("hostname").isspace():
+            with open(config_file, "a") as f: 
+                f.write("Host {}".format(cfg.get("hostname")) + "\n")
+            for o, a in cfg_opts.items():
+                if cfg.get(o) != None:
+                    with open(config_file, "a") as f1: 
+                        f1.write("    {opt} {val}".format(opt=a, val=cfg.get(o)) + "\n")
+            with open(config_file, "a") as f1: 
+                f1.write("\n")        
+    func.chmod(config_file, "644")
+
+# Display final config
+log.debug(f"ssh config: '{config_file}'")
+log.debug(func.capture_cmd_stdout(f'cat {config_file}', cli_env))
 
 # Export environment for ssh sessions
 #run("printenv > $HOME/.ssh/environment", shell=True)

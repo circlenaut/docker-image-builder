@@ -7,6 +7,7 @@ Configure system ssh service
 import os
 import sys
 import logging
+import coloredlogs
 import argparse
 import json
 from subprocess import run
@@ -40,6 +41,8 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 # Set root settings
 root_user = "root"

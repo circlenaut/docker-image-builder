@@ -159,6 +159,7 @@ cython_debug/
 
 # Exclude VScode File
 .vscodes
+.vscode
 __debug_bin
 *.vsix
 
@@ -233,7 +234,7 @@ prime/
 # Exclude Test Data Directories
 /dev-server/tests
 
-# Exclude docker build directory
-/Image-Builder/build
+# Exclude docker build directories
+/*/build
 
 

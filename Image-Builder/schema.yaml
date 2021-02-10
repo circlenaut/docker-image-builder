@@ -11,9 +11,10 @@ info_map:
     organization: str(required=False)
     version: str(required=False)
     repository: str(required=False)
+    build_dir: str(required=False)
 ---
 build_map:
-    base: str(required=True)
+    base: str(required=False)
     projects: list(include('project_map', required=True), required=True)
 project_map:
     name: str(required=True)
@@ -26,4 +27,5 @@ dockerfile_map:
     tag: str(required=False)
     push: str(required=False)
     from: str(required=False)
+    entrypoint: str(required=False)
     

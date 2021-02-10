@@ -1,6 +1,14 @@
 FROM registry.dev.proneer.co/dev-gpu:latest
+MAINTAINER proneer <phillip@proneer.co>
 
 ######## VSCODE ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.vscode" \
+        org.label-schema.name="Development image loaded with Vscode, filebrowsers and various WebUI utilities" \
+        org.label-schema.url="https://www.proneer.co"
 
 USER root
 
@@ -51,7 +59,8 @@ COPY scripts/configure_vscode.py $SCRIPTS_PATH
 COPY scripts/configure_filebrowser.py $SCRIPTS_PATH
 COPY scripts/configure_caddy.py $SCRIPTS_PATH
 COPY scripts/configure_app.py $SCRIPTS_PATH
-COPY scripts/setup_workspace.py $SCRIPTS_PATH
+COPY scripts/setup_conda_envs.py $SCRIPTS_PATH
+COPY scripts/run_installers.py $SCRIPTS_PATH
 # copy main config file
 #COPY scripts/config.yaml $SCRIPTS_PATH
 # copy yaml validator schema

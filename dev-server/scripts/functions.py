@@ -4,12 +4,14 @@ Collection of commonly used functions
 
 import os
 import sys
+import re
+import json
 import psutil
 import shutil
-import re
-import logging
-import requests
 import yamale
+import requests
+import logging
+import coloredlogs
 from urllib.parse import quote, urljoin, urlparse
 from subprocess   import run, call, Popen, PIPE
 
@@ -20,6 +22,59 @@ logging.basicConfig(
     stream=sys.stdout)
 
 log = logging.getLogger(__name__)
+
+# Set log level
+verbosity = os.getenv("LOG_VERBOSITY", "INFO")
+log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
+
+### Define classes
+
+class ShellCommand(object):
+    def __init__(self):
+        self.track_exit = int()
+
+    def run_script(self, path, args=None, environment=None, verbosity='INFO'):
+        return_code = -1
+        log.setLevel(verbosity)
+        def on_terminate(proc, level=verbosity):
+            log.debug("process {} terminated".format(proc))
+            self.track_exit = proc.returncode
+        if args != None:
+            if isinstance(args, list):
+                cmd = ['sh', path] + args
+            else:
+                log.error(f"is not at list!: '{args}'")
+                sys.exit()
+        else:
+            cmd = ['sh', path]
+        if environment != None:
+            ps = Popen(cmd, env=environment)
+        else:
+            ps = Popen(cmd)
+        procs_list = [psutil.Process(ps.pid)]
+        while True: 
+            gone, alive = psutil.wait_procs(procs_list, timeout=3, callback=on_terminate) 
+            if len(gone)>0: 
+                break
+        return_code = self.track_exit
+        return return_code
+
+    def run_url(self, url, args=None, environment=None, verbosity='INFO'):
+        return_code = -1
+        log.setLevel(verbosity)
+        if check_valid_url(url) and url_active(url):
+            log.info(f"installing '{url}' with arguments: '{args}''")
+            filename = get_url_suffix(url)
+            file_object = requests.get(url)
+            with open(filename, 'wb') as installer:
+                installer.write(file_object.content)
+            return_code = self.run_script(filename, args, environment, verbosity)
+            os.remove(filename)
+        else:
+            log.error(f"invalid '{url}'")
+        return return_code    
 
 ### Define functions
 
@@ -55,6 +110,25 @@ def recursive_chmod(path, mode):
                if not os.path.islink(file_path):
                     chmod(file_path, mode)
 
+def recursive_make_dir(path, user=None, group=None, mode=None):
+    def make_forward(dest):
+        parent_dir = os.path.dirname(dest)
+        if os.path.exists(parent_dir):
+            # Get parent mode and permissions
+            stat_info = os.stat(parent_dir)
+            uid = stat_info.st_uid
+            gid = stat_info.st_gid
+            user = user if user else pwd.getpwuid(uid)[0]
+            group = group if group else grp.getgrgid(gid)[0]
+            mask = mode if mode else str(oct(stat_info.st_mode)[-3:])
+            # create dir and set permissions and mask
+            log.debug(f"creating: '{dest}' set to: '{user}:{group}:{mask}'")
+            os.mkdir(dest)
+            chown(dest, user, group)
+            chmod(dest, mask)
+        else:
+            log.error(f"parent directory does not exist! '{parent_dir}'")
+
 def yaml_valid(schema, data, level):
     log.setLevel(level)
     try:
@@ -63,6 +137,13 @@ def yaml_valid(schema, data, level):
     except yamale.YamaleError as e:
         log.error('YAML Validation failed!\n%s' % str(e))
         return False
+
+def is_json(path):
+  try:
+    json_object = json.loads(path)
+  except ValueError as e:
+    return False
+  return True
 
 def hash_password(password):
      encoded_password = password.encode()
@@ -122,28 +203,6 @@ def get_url_suffix(url):
     http = urlparse(url)
     base = os.path.basename(http.path)
     return base
-
-def run_shell_installer_url(url, args, environment, verbosity):
-    log.setLevel(verbosity)
-    def on_terminate(proc, level=verbosity):
-        log.debug("process {} terminated".format(proc))
-    if check_valid_url(url) and url_active(url):
-        log.info(f"installing '{url}' with arguments: '{args}''")
-        filename = get_url_suffix(url)
-        file_object = requests.get(url)
-        with open(filename, 'wb') as installer:
-            installer.write(file_object.content)
-        cmd = ['sh', filename] + args
-        ps = Popen(cmd, env=environment)
-        procs_list = [psutil.Process(ps.pid)]
-        while True: 
-            gone, alive = psutil.wait_procs(procs_list, timeout=3, callback=on_terminate) 
-            if len(gone)>0: 
-                break
-        os.remove(filename)
-    else:
-        log.error(f"invalid '{url}'")
-
 def merge_two_dicts(x, y):
     z = x.copy()   # start with x's keys and values
     z.update(y)    # modifies z with y's keys and values & returns None

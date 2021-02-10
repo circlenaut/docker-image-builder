@@ -9,6 +9,7 @@ import sys
 import psutil
 import re
 import logging
+import coloredlogs
 import requests
 import argparse
 import json
@@ -87,6 +88,11 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
+
+### Pull functions
+shell_cmd = func.ShellCommand()
 
 ### Get envs
 zsh_prompt = cli_env.get("ZSH_PROMPT")
@@ -112,7 +118,7 @@ on_my_zsh_config_path = os.path.join(user_home, ".zshrc")
 if not os.path.exists(on_my_zsh_dir):
     log.info("Installing Oh-My-Zsh")
     
-    func.run_shell_installer_url(
+    return_code = shell_cmd.run_url(
         'https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh',
         ['--unattended'],
         zsh_env,
@@ -305,8 +311,12 @@ if not os.path.exists(on_my_zsh_dir):
         ['conda', 'install', '-c', 'conda-forge', '--quiet', '--yes',
             'python=3.8',
             'pip',
+            'psutil',
             'pyyaml',
-            'yaml'],
+            'yaml',
+            'yamale',
+            'coloredlogs'
+            ],
         env=zsh_env
     )
     # Disable auto conda activation
@@ -315,7 +325,12 @@ if not os.path.exists(on_my_zsh_dir):
         ['conda', 'config', '--set', 'auto_activate_base', 'false'],
         env=zsh_env
     )
-    
+    # Disable showing active conda environment at command line prompt; zsh does this.
+    log.info(f"disabling cli display of active environment '{user_shell}'")
+    run(
+        ['conda', 'config', '--set', 'changeps1', 'false'],
+        env=zsh_env
+    )
     ### Configure Git
     log.info(f"setting git config for '{user_name}': core.fileMode=false")
     run(
@@ -348,7 +363,7 @@ if not os.path.exists(on_my_zsh_dir):
 
     #@TODO: doesn't work, fix
     ### Setup sdkman
-    #func.run_shell_installer_url(
+    #return_code = shell_cmd.run_url(
     #    'https://get.sdkman.io ',
     #    [],
     #    zsh_env,

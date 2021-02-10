@@ -8,10 +8,11 @@ import os
 import sys
 import argparse
 import json
+import logging
+import coloredlogs
 from subprocess import run
 
-# Enable logging
-import logging
+### Enable logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
     level=logging.INFO, 
@@ -39,6 +40,8 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 ### Create json dumps for passage into scripts
 cli_opts_json = json.dumps(cli_opts)

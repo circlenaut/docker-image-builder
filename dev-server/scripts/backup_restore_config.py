@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import logging
+import coloredlogs
 import os
 import random
 #import subprocess
@@ -42,7 +43,9 @@ cli_user = args.user
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
-
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
+        
 ### Get envs
 config_backup_enabled = cli_env.get("CONFIG_BACKUP_ENABLED")
 

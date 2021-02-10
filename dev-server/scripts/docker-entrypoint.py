@@ -7,6 +7,7 @@ Main Workspace Run Script
 import os
 import sys
 import logging
+import coloredlogs
 import json
 import math
 import glob
@@ -137,6 +138,8 @@ opts = {
 }
 
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 ### Reconcile docker env var with corresponding config setting
 system_configs = dict()
@@ -287,7 +290,15 @@ default_user = [{
             'https://github.com/supercrabtree/k'
         ]},
     'ssh': {
-        'pub_keys': ['']
+        'pub_keys': [''],
+        'configs': [{
+            'hostname': '', 
+            'port': '', 
+            'user': '',
+            'pub_key_auth': '',
+            'id_only': '',
+            'id_file_path': ''
+        }]
     },
     'filebrowser': {
         'port': configs_list.get("system").get("fb_port"), 

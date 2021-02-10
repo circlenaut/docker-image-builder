@@ -12,6 +12,7 @@ import sys
 import json
 import bcrypt
 import logging
+import coloredlogs
 import argparse
 from urllib.parse import quote, urljoin
 from subprocess   import run, call
@@ -45,14 +46,12 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 ### Get envs
 proxy_base_url = cli_env.get("PROXY_BASE_URL")
 caddy_virtual_base_url = cli_env.get("CADDY_VIRTUAL_BASE_URL")
-#app_bind_addr = cli_env.get("APP_BIND_ADDR")
-#app_base_url = cli_env.get("APP_BASE_URL")
-#app_user = cli_env.get("APP_USER")
-#app_password = cli_env.get("APP_PASSWORD")
 app_bind_addr = cli_user.get("app").get("bind_addr")
 app_base_url = cli_user.get("app").get("base_url")
 app_root_dir = cli_user.get("app").get("root_dir")
@@ -100,11 +99,17 @@ if not os.path.exists(app_dir):
     func.recursive_chown(apps_dir, user_name, user_group)
 
 ### Generate password hash
-password = app_password.encode()
-salt = bcrypt.gensalt()
-hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
-log.info(f"{application} password: '{app_password}'")
-log.info(f"{application} hashed password: '{hashed_password}'")
+if not app_username == None:
+    if not app_password == None: 
+        password = app_password.encode()
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
+        log.info(f"{application} password: '{app_password}'")
+        log.info(f"{application} hashed password: '{hashed_password}'")
+    else:
+        log.warning(f"{application} password not set for : '{app_username}'")
+else:
+    log.warning(f"{application} user not set")
 
 ### Create config template
 config_file = {

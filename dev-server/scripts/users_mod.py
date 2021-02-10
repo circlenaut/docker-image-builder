@@ -13,6 +13,7 @@ import codecs
 import typing
 import spwd
 import logging
+import coloredlogs
 from pathlib              import Path
 from getpass              import getpass
 from subprocess           import run, call
@@ -28,6 +29,8 @@ log = logging.getLogger(__name__)
 # Set log level
 verbosity = os.getenv("LOG_VERBOSITY", "INFO")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 class PwdRecord(object):
 

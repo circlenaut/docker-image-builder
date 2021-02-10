@@ -75,6 +75,14 @@ zsh_map:
     plugins: list(str(required=False), required=False)
 ssh_map:
     pub_keys: list(str(required=False), required=False)
+    configs: list(include('ssh_config_map', required=False), required=False)
+ssh_config_map:
+    hostname: str(required=False)
+    port: str(required=False)
+    user: str(required=False)
+    pub_key_auth: str(required=False)
+    id_only: str(required=False)
+    id_file_path: str(required=False)
 filebrowser_map:
     port: str(required=True)
     base_url: str(required=False)

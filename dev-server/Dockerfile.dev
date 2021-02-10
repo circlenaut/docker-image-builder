@@ -1,6 +1,14 @@
 FROM registry.dev.proneer.co/base-gpu:latest
+MAINTAINER proneer <phillip@proneer.co>
 
 ######## DEV ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.dev" \
+        org.label-schema.name="Base development image" \
+        org.label-schema.url="https://www.proneer.co"
 
 USER root
 
@@ -42,7 +50,6 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        locales \
         tzdata \
         jq \
         libssl-dev \
@@ -82,6 +89,7 @@ RUN \
         expect \
         catimg \
         autojump \
+        lynx \
         # Net tools
         net-tools \
         dnsutils \
@@ -99,22 +107,27 @@ RUN \
         cmake \
         pkg-config \
         swig \
+        libicu-dev \
+        # Net libs
+        libsodium-dev \
+        # Sec libs
+        libargon2-0-dev \
         # Version control
         subversion \
         jed \
-        git \
         git-flow \
         git-extras \
         # Visualization
         graphviz \
         # DB libs
         sqlite3 \
-        libmysqlclient-dev \
         libhiredis-dev \
         libpq-dev \
         libsqlite3-dev \
         unixodbc unixodbc-dev \
-        # libmariadbclient-dev \
+        libmariadb-dev \
+        libmariadbclient-dev \
+        #libmysqlclient-dev \
         # Required by Pyenv
         libreadline-dev \
         libedit-dev \
@@ -142,7 +155,6 @@ RUN \
         fonts-liberation \
         google-perftools \
         # Compression libs
-        zip \
         gzip \
         lzop \
         libarchive-tools \
@@ -152,6 +164,8 @@ RUN \
         libbz2-dev \
         liblzma-dev \
         zlib1g-dev \
+        libonig-dev \
+        libzip-dev \
     # Cleanup
     && clean-layer.sh \
     # Fix permissions
@@ -162,7 +176,8 @@ RUN \
     echo "**** installing node.js dev environment ****" \
     apt-get update \
     # https://nodejs.org/en/about/releases/ use even numbered releases, i.e. LTS versions
-    && curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash - \
+#    && curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash - \
+    && curl -sL https://deb.nodesource.com/setup_lts.x | sudo -E bash - \
     && apt-get install -y nodejs \
     # As conda is first in path, the commands 'node' and 'npm' reference to the version of conda.
     # Replace those versions with the newly installed versions of node
@@ -358,6 +373,7 @@ RUN \
         passlib \
         bcrypt \
         watchgod \
+        coloredlogs \
     # Cleanup
     && clean-layer.sh
 

@@ -13,6 +13,7 @@ import argparse
 import json
 import bcrypt
 import logging
+import coloredlogs
 import crypt
 import spwd
 import requests
@@ -24,19 +25,46 @@ from pathlib import Path
 from watchgod import run_process
 import functions as func
 
-def check_user(user_name, user_home):
+def get_id(idt, idn, id_list):
+     set_id = int()
+     if idn in id_list:
+          if idt == "uid": idn = 1000
+          elif idt == "gid": idn = 100
+          else: log.error(f"Unknown id type: '{idt}'")
+     while idn in id_list:
+          idn+=1
+     else:
+          set_id = idn   
+     return set_id
+
+def check_user(user_name=None, user_home=None):
      user_exists = False
+     home_exists = False
      user_record = dict()
+     existing_records = dict()
      user_records = PwdFile().toJSON().get("pwdRecords")
 
-     if os.path.exists(user_home):
-          home_exists = True
-     else:
-          home_exists = False
+     if user_home != None:
+          if os.path.exists(user_home):
+               home_exists = True
+          else:
+               home_exists = False
 
+     names = list()
+     uids = list()
+     gids = list()
+     homes = list()
      for user in user_records:
           record = json.dumps(user, indent = 4)
           name = user.get("userName")
+          uid = user.get("userID")
+          gid = user.get("groupID")
+          home = user.get("homeDirPath")
+
+          if name != None: names.append(name)
+          if uid != None: uids.append(uid)
+          if gid != None: gids.append(gid)
+          if home != None: homes.append(home)
           #log.debug(record)
           #log.debug(name)
           if name == user_name:
@@ -45,10 +73,21 @@ def check_user(user_name, user_home):
                break
           else:
                user_exists = False
+     existing_records = {
+          'names': names,
+          'groups': [], # get this in the future
+          'uids': uids,
+          'gids': gids,
+          'homes': homes
+     }
 
-     return user_exists, home_exists, user_record
+     return user_exists, home_exists, user_record, existing_records
 
 def create_user(config):
+     user_exists, home_exists, user_record, existing_records = check_user()
+     existing_uids = existing_records.get("uids")
+     existing_gids = existing_records.get("gids")
+
      user_name = config.get("name")
      home = config.get("dirs").get("home").get("path")
      uid = config.get("uid")
@@ -111,7 +150,7 @@ def create_user(config):
 
      ### Create user sudo config
      sudo_config_path = os.path.join("/etc/sudoers.d", user_name)
-     sudo_config = f"{user_name} ALL=(root) NOPASSWD:ALL"
+     sudo_config = f"{user_name} ALL=(ALL:ALL) NOPASSWD:ALL"
      
      log.info(f"adding sudo config: '{sudo_config}' to '{sudo_config_path}'")
      with open(sudo_config_path, "w") as f: 
@@ -171,13 +210,16 @@ def set_user_paths(config):
                     # Go one level down, docker sets mounted dir ownership to root
                     for d in os.listdir(dir_path):
                          p = os.path.join(dir_path, d)
-                         if Path(p).owner() == user_name:
-                              log.warning(f"path '{p}', already owned by '{user_name}'")
-                         else:
-                              log.info(f"setting ownership of '{p}', to '{user_name}:{user_group}'")
-                              func.recursive_chown(p, user_name, user_group)
-                              log.info(f"setting mode of '{p}', to '{dir_mode}'")
-                              func.recursive_chmod(p, dir_mode)
+                         try:
+                              if Path(p).owner() == user_name:
+                                   log.warning(f"path '{p}', already owned by '{user_name}'")
+                              else:
+                                   log.info(f"setting ownership of '{p}', to '{user_name}:{user_group}'")
+                                   func.recursive_chown(p, user_name, user_group)
+                                   log.info(f"setting mode of '{p}', to '{dir_mode}'")
+                                   func.recursive_chmod(p, dir_mode)
+                         except KeyError:
+                              log.error(f"Error getting user for path: '{p}'")
           else:
                log.info(f"creating directory: '{dir_path}'")
                os.makedirs(dir_path)
@@ -226,7 +268,7 @@ def check_old_pass(user_name, password):
           return 'error'
 
 def change_pass(user_name, user_home, old_password, new_password):
-     user_exists, home_exists, user_record = check_user(user_name, user_home)
+     user_exists, home_exists, user_record, existing_records = check_user(user_name, user_home)
      if user_exists:
           current_password_hash = spwd.getspnam(user_name).sp_pwdp
           log.info(f"current password hash: '{current_password_hash}'")
@@ -257,7 +299,7 @@ def change_pass(user_name, user_home, old_password, new_password):
           log.error("unknown error")
 
 def change_user_shell(user_name, user_home, shell):
-     user_exists, home_exists, user_record = check_user(user_name, user_home)
+     user_exists, home_exists, user_record, existing_records = check_user(user_name, user_home)
 
      if user_exists:
           log.info(f"'{user_name}' shell changed to: '{shell}'")
@@ -296,7 +338,7 @@ def init_shell(config, environment):
      user_env['HOME'] = user_home
 
      # Install conda
-     func.run_shell_installer_url(
+     return_code = shell_cmd.run_url(
           'https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh', 
           ['-b', '-u', '-p', conda_root], 
           user_env,
@@ -360,7 +402,7 @@ def setup_user(config, environment, args):
      set_user_paths(config)
      
      # Run final check
-     user_exists, home_exists, user_record = check_user(user_name, user_home)
+     user_exists, home_exists, user_record, existing_records = check_user(user_name, user_home)
      log.debug("user record:")
      log.debug(user_record)
 
@@ -379,16 +421,6 @@ def setup_user(config, environment, args):
                     '--opts', cli_args_json, 
                     '--env', user_env_json, 
                     '--user', cli_user_json],
-               env=user_env
-          )
-
-     # Load any startup scripts
-     startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
-     if os.path.exists(startup_custom_script):
-          log.info("Run on_startup.sh user script from workspace folder")
-          # run startup script from workspace folder - can be used to run installation routines on workspace updates
-          run(
-               ['/bin/bash', startup_custom_script], 
                env=user_env
           )
 
@@ -464,6 +496,11 @@ cli_configs = args.configs
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
+
+### Pull functions
+shell_cmd = func.ShellCommand()
 
 ### Get envs
 user_name = cli_env.get("WORKSPACE_USER")
@@ -477,14 +514,54 @@ workspace_env = cli_env
 cli_opts_json = json.dumps(cli_opts)
 workspace_env_json = json.dumps(workspace_env)
 
+# Get existing user settings
+user_exists, home_exists, user_record, existing_records = check_user()
+existing_names = existing_records.get("names")
+existing_groups = existing_records.get("groups")
+existing_homes = existing_records.get("homes")
+existing_uids = existing_records.get("uids")
+existing_gids = existing_records.get("gids")
+
 ### Run user creation scripts
 usr_count = 0
 username_list = list()
 for usr in cli_configs.get("users"):
      ### Set configs
-     user_name = usr.get("name")
+     # set overrides
+     u_name = usr.get("name")
+     u_group = usr.get("group")
+     u_uid = int(usr.get("uid"))
+     u_gid = int(usr.get("gid"))
+     
+     if u_name in existing_names:
+          user_override = f"{u_name}_"
+          log.warning(f"Username '{u_name}' already exists! changing to '{name_override}'")
+          user_name = user_override
+          usr["name"] = user_override
+     else:
+          user_name = u_name
      username_list.append(user_name)
-     user_group = usr.get("group")
+     if u_group in existing_groups:
+          group_override = f"{u_group}_"
+          log.warning(f"Group '{u_group}' already exists! changing to '{group_override}'")
+          user_group = group_override
+          usr["group"] = group_override
+     else:
+          user_group = u_group
+     if u_uid in existing_uids:
+          uid_override = get_id("uid", u_uid, existing_uids)
+          log.warning(f"UID '{u_uid}' already exists! changing to '{uid_override}'")
+          user_uid = str(uid_override)
+          usr["uid"] = str(uid_override)
+     else:
+          user_uid = str(u_uid)
+     if u_gid in existing_gids:
+          gid_override = get_id("gid", u_gid, existing_gids)
+          log.warning(f"GID '{u_gid}' already exists! changing to '{gid_override}'")
+          user_gid = str(gid_override)
+          usr["gid"] = str(gid_override)
+     else:
+          user_gid = str(u_gid)
 
      # set user shell
      if usr.get("shell") == "zsh": 
@@ -504,11 +581,17 @@ for usr in cli_configs.get("users"):
      cli_configs.get("users")[usr_count]["dirs"] = copy(u_dirs)
 
      # define user folders
-     user_home = cli_configs.get("users")[usr_count].get("dirs").get("home").get("path")
+     u_home = cli_configs.get("users")[usr_count].get("dirs").get("home").get("path")
+     if u_home in existing_homes:
+          home_override = f"{u_home}_"
+          log.warning(f"Home '{u_home}' already exists! changing to '{home_override}'")
+          user_home = home_override
+     else:
+          user_home = u_home
      workspace_dir = cli_configs.get("users")[usr_count].get("dirs").get("workspace").get("path")
      config_backup_folder = workspace_dir + "/.workspace/backup/"
 
-     user_exists, home_exists, user_record = check_user(user_name, user_home)
+     user_exists, home_exists, user_record, existing_records = check_user(user_name, user_home)
      log.debug(user_record)
 
      # create json dump of user config for passage into scripts
@@ -522,7 +605,7 @@ for usr in cli_configs.get("users"):
                log.info(f"config backup folder exists '{config_backup_folder}', restoring.")
                # Create user
                create_user(usr)
-               user_exists, home_exists, user_record = check_user(user_name, user_home)
+               user_exists, home_exists, user_record, existing_records = check_user(user_name, user_home)
 
                # Set password
                change_pass(user_name, user_home, "password", usr.get("password"))
@@ -547,7 +630,7 @@ for usr in cli_configs.get("users"):
                # Create user
                log.info(f"creating user '{user_name}'")
                user_env = setup_user(usr, workspace_env, cli_opts)
-               user_exists, home_exists, user_record = check_user(user_name, user_home)
+               user_exists, home_exists, user_record, existing_records = check_user(user_name, user_home)
                log.debug(user_record)
 
                # Setup user services
@@ -630,14 +713,28 @@ for usr in cli_configs.get("users"):
      workspace_env['HOME'] = user_home
 
      # Execute
-     log.info("Creating conda environments")
+     log.info(f"Creating conda environments'")
      run(
-          ['conda', 'run','-n', 'base', 'python', '/scripts/setup_workspace.py', 
+          ['conda', 'run','-n', 'base', 'python', '/scripts/setup_conda_envs.py', 
                '--opts', cli_opts_json,
                '--env', workspace_env_json, 
                '--user', cli_user_json],
           env=workspace_env
      )
+     log.info(f"Running installer scripts")
+     run(
+          ['sudo', '-i', '-u', user_name, 'python3', '/scripts/run_installers.py', 
+               '--opts', cli_opts_json,
+               '--env', workspace_env_json,
+               '--user', cli_user_json],
+          env=workspace_env
+     )
+     startup_custom_script = os.path.join(workspace_dir, "on_startup.sh")
+     if os.path.exists(startup_custom_script):
+          log.info("Running user script script 'on_startup.sh' from workspace folder")
+          # run startup script from workspace folder - can be used to run installation routines on workspace updates
+          shell_cmd.run_script(startup_custom_script)
+
      # Fix permissions
      log.info(f"fixing ownership of '{conda_root}' for '{user_name}:{user_group}'")
      func.recursive_chown(conda_root, user_name, user_group)
@@ -645,7 +742,6 @@ for usr in cli_configs.get("users"):
      ### Run user config backup
      action = "backup"
      log.info(f"backup script: '{action}'")
-
      run(
           ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
                '--opts', cli_opts_json,
@@ -654,29 +750,6 @@ for usr in cli_configs.get("users"):
                '--mode', action],
           env=workspace_env
      )
-
-     #@TODO: define a new rsync function derived from this script. This is too much
-     def backup_config(user_name, env, opts, user_json, path):
-          opts_json = json.dumps(opts)
-          env_json = json.dumps(env)
-          action = "backup"
-          log.info(f"backup script: '{action}'")
-
-          run(
-               ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
-                    '--opts', opts_json,
-                    '--env', env_json,
-                    '--user', user_json,
-                    '--mode', action],
-               env=env
-          )
-
-     #@TODO: Functional but causes ssh to malfunction
-     ### Watch directories for changes and run
-     #user_ssh_dir = os.path.join(user_home, ".ssh")
-     #log.info(f"watching directory for changes: '{user_ssh_dir}'")
-     #run_process(user_ssh_dir, backup_config, args=(user_name, workspace_env, cli_opts, cli_user_json, user_ssh_dir))
-     #backup_config(user_name, workspace_env, cli_opts, cli_user_json, user_ssh_dir)
 
      usr_count+=1
 

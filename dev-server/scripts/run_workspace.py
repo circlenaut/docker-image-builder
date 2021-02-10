@@ -10,11 +10,12 @@ import sys
 import argparse
 import yaml
 import json
+import logging
+import coloredlogs
 import functions as func
 from subprocess import run, call, Popen, PIPE
 
 ### Enable logging
-import logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
     level=logging.INFO, 
@@ -36,6 +37,8 @@ cli_opts = args.opts
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 log.info("Start Workspace")
 

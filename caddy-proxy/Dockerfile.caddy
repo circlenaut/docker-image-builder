@@ -1,5 +1,14 @@
 FROM registry.dev.proneer.co/caddy-proxy:base
+MAINTAINER proneer <phillip@proneer.co>
 
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.caddy" \
+        org.label-schema.name="Ubuntu 20.04 Caddy Proxy Base image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
 ENV \
     USER_GID=0 \
     DEBIAN_FRONTEND=noninteractive \

@@ -1,5 +1,16 @@
 FROM ubuntu:20.04
-### Install system packages
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Caddy ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.base" \
+        org.label-schema.name="Ubuntu 20.04 Caddy Proxy Base image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
 ENV \
     USER_GID=0 \
     DEBIAN_FRONTEND=noninteractive \
@@ -104,7 +115,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ### Install Docker SDK
 RUN echo "**** installing docker sdk ****" \
-    && pip3 install docker
+    && pip3 install \
+        docker \
+        coloredlogs
 
 ### Install Golang dev environment
 RUN echo "**** installing golang dev environment ****" \

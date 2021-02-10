@@ -318,7 +318,7 @@ class PushStatus(object):
                         #transfer_diff = convert_bytes(transfer_latest - transfer_previous)
                         transfer_diff = transfer_latest - transfer_previous
                     if not self.pbar.get(idnt):
-                        log.info(transfer_progress.get(idnt).get("detail"))
+    #                    log.info(transfer_progress.get(idnt).get("detail"))
                         self.pbar[idnt] = trange(total, unit=" bytes", bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} bytes [{elapsed}<{remaining}, {rate_fmt}]')
                     else:
                         if transfer >= total:
@@ -405,11 +405,26 @@ def recursive_make_dir(path):
             log.error(f"parent directory does not exist! '{parent_dir}'")
 
     path_elements = path.split(os.path.sep)
-    base = "/"
+    sep = os.path.sep
+    if path_elements[0] == "..":
+        root = ".."
+    elif path_elements[0] == "/" :
+        root = "/"
+    elif path_elements[0] == os.path.sep:
+        root = os.path.sep
+    else:
+        log.error(f"Unknown base seperator! '{path_elements[0]}'")
+    count = 0
+    last_path = root
     for e in path_elements:
-        path = os.path.join(base, e)
+        path = os.path.join(last_path, e)
+        if e == ".." and count == 0:
+            path = root
+        else:
+            path = path
+        last_path = path
         exists = os.path.exists(path)
-        base = path
+        count+=1
         if not exists:
             make_forward(path)
 
@@ -737,6 +752,7 @@ def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_
         sys.exit()
 
     ### Set relative paths
+    work_dir = configs.get("info").get("build_dir") if configs.get("info").get("build_dir") else work_dir
     build_dir =  os.path.join(work_dir, "build")
     log.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
     project_build_dir = os.path.join(build_dir, os.path.basename(configs.get("info").get("name")))
@@ -746,7 +762,7 @@ def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_
 
     # Create build directory
     if dryrun:
-        log.info(f"Dry run: creating build directory: '{project_build_dir}'")
+        log.info(f"Dry run: creating build directories: '{project_build_dir}'")
     elif not dryrun:
         log.info(f"creating build directory: '{project_build_dir}'")
         recursive_make_dir(project_build_dir)
@@ -805,7 +821,7 @@ def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_
 
                     ### Set from image specified in config
                     dockerfile_from = image.get("from")
-                    dockerfile_entrypoint = str()
+                    dockerfile_entrypoint = image.get("entrypoint")
                     dockerfile_cmd = str()
                     
                     ### Modify Dockerfile
@@ -815,6 +831,9 @@ def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_
                     for l in lines:
                         # Get list of files formated as ["file1", "file2"]
                         if l.isspace():
+                            continue
+                        if l[0] == "#":
+                            log.debug(f"skipping commented line: {l}")
                             continue
                         copy_chars = list()
                         skip_line = False
@@ -909,9 +928,22 @@ def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_
 
                     image_count+=1
 
+                    if dockerfile_entrypoint:
+                        log.debug(f"Final Entrypoint: '{dockerfile_entrypoint}'")
+                        dockerfile_final.append(f"ENTRYPOINT {dockerfile_entrypoint} \n")
+                        df_lines.append(f"ENTRYPOINT {dockerfile_entrypoint} \n")
+
                     s = '\n'
                     dockerfile_mod = s.join(df_lines)
-                    log.debug(dockerfile_mod)
+                    
+                    count = 0
+                    dockerfile_mod_debug = list()
+                    for l in df_lines:
+                        dockerfile_mod_debug.append(f"{str(count).ljust(5)} {l}")
+                        count+=1
+
+                    dockerfile_mod_debug = s.join(dockerfile_mod_debug)
+                    log.debug(dockerfile_mod_debug)
         
                     # Encode before building
                     dockerfile_encoded = io.BytesIO(dockerfile_mod.encode('utf-8'))
@@ -937,10 +969,9 @@ def main(opts, log_level, config, repository, push, dryrun, gzip, overwrite, rm_
                         [decode_stream(line) for line in cli.build(
                             fileobj=dockerfile_obj, rm=True, tag=image_docker_path, custom_context=True
                         )]
-                        
-                        log.info(f"Pushing: '{image_docker_path}'")
-                        push_tracker.set_image(image_docker_path)
                         if image_push:
+                            log.info(f"Pushing: '{image_docker_path}'")
+                            push_tracker.set_image(image_docker_path)
                             [push_tracker.store(line) for line in cli.push(
                                 image_docker_path, stream=True, decode=True
                             )]

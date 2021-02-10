@@ -11,11 +11,14 @@ import os
 import sys
 import json
 import logging
+import coloredlogs
 import argparse
 import contextlib
 import conda.cli.python_api as Conda
-from subprocess import run
+import datetime
+from subprocess import run, call
 from conda_parser import parse_environment
+import functions as func
 
 def get_conda_envs():
     proc = run(["conda", "info", "--json", "--envs"],
@@ -72,6 +75,11 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
+
+### Pull functions
+shell_cmd = func.ShellCommand()
 
 ### Get envs
 conda_env_path = cli_env.get("CONDA_ENV_PATH")

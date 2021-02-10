@@ -21,11 +21,10 @@ import os
 import shutil
 import sys
 import json
-from copy import copy
-### Enable docker
 import docker
-### Enable logging
+import coloredlogs
 import logging
+from copy import copy
 ### Get Caddy settings template
 #from caddyfile import template
 from urllib.parse import quote, urljoin
@@ -33,7 +32,6 @@ from urllib.parse import quote, urljoin
 ### Global Vars
 global hosts_file
 hosts_file = "/etc/hosts"
-
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s', 
@@ -50,8 +48,9 @@ if ENV_DATA_PATH != "/apps":
         data_dir = shutil.copytree("/apps", ENV_DATA_PATH)
         log.info(f"Data directory created: '{data_dir}'")
     else:
-        log.info(f"Data directory exists!: '{ENV_DATA_PATH}'")
+        log.warning(f"Data directory exists!: '{ENV_DATA_PATH}'")
 
+ENV_LOG_VERBOSITY = os.getenv("LOG_VERBOSITY", "INFO")
 ENV_HOSTNAME = os.getenv("HOSTNAME", "localhost")
 ENV_USER = os.getenv("USER", "caddy")
 ENV_BIND_IPS = os.getenv("BIND_IPS", "127.0.0.1").split(",")
@@ -63,6 +62,25 @@ ENV_HTTPS_ENABLE = os.getenv("HTTPS_ENABLE", "true")
 ENV_AUTO_HTTPS = os.getenv("AUTO_HTTPS", "true")
 ENV_HTTPS_PORT = os.getenv("HTTPS_PORT", "443")
 ENV_BASE_URL = os.getenv("BASE_URL", "/")
+
+### Set verbosity level. log.info occasinally throws EOF errors with high verbosity
+if ENV_LOG_VERBOSITY in [
+    "DEBUG",
+    "INFO",
+    "WARNING",
+    "ERROR",
+    "CRITICAL"
+]:
+    verbosity = ENV_LOG_VERBOSITY
+else:
+    log.error("invalid verbosity: '{}".format(ENV_LOG_VERBOSITY))
+    verbosity = "INFO"
+
+# Set log level
+log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
+
 
 host_bind_ips = list()
 for i in ENV_BIND_IPS:
@@ -87,10 +105,10 @@ ext_ports = list()
 ext_ips = list()
 ext_protos = list()
 for full_port, properties in host_container.attrs.get('NetworkSettings').get('Ports').items():
-    #log.info("{}-{}".format(full_port, properties))
+    #log.debug("{}-{}".format(full_port, properties))
     port, proto = full_port.split('/', 1)
-    #log.info(f"test {port}")
-    #log.info(f"type {type(port)}")
+    #log.debug(f"test {port}")
+    #log.debug(f"type {type(port)}")
     host_ext_addrs[port] = dict()
     host_ext_addrs[port]['proto'] = proto
     ext_ports.append(port)
@@ -102,7 +120,7 @@ for full_port, properties in host_container.attrs.get('NetworkSettings').get('Po
                 host_ext_addrs[port]['ext_ips'].append(a[1])
                 ext_ips.append(a[1])
 for net, properties in host_container.attrs.get('NetworkSettings').get('Networks').items():
-    #log.info("{}-{}".format(net, properties))
+    #log.debug("{}-{}".format(net, properties))
     for attr, value in properties.items():
         if attr == 'NetworkID':
             networks[net] = value
@@ -111,7 +129,7 @@ log.info(f"Ext Addrs '{host_ext_addrs}'")
 
 for host_ext_port in [ENV_HTTP_PORT, ENV_HTTPS_PORT]:
     if host_ext_addrs.get(host_ext_port) == None:
-        log.info(f"'{host_container.name}' port '{host_ext_port}' is not a valid external port! Quiting.")
+        log.warning(f"'{host_container.name}' port '{host_ext_port}' is not a valid external port! Quiting.")
         quit()
 
 proxy_clients = dict()
@@ -137,10 +155,10 @@ for docker_net, net_id in networks.items():
                 if e != None:
                     var = e.split("=")[0]
                     value = e.split("=")[1]
-                    #log.info("{} - {}".format(var, value))
+                    #log.debug("{} - {}".format(var, value))
                     if var == 'VIRTUAL_HOST':
                         append_dict['virtual_host'] = value
-                        #log.info(f"Virtual Host: '{value}'")
+                        #log.debug(f"Virtual Host: '{value}'")
                     elif var == 'VIRTUAL_BIND_IP':
                         if client_num_networks > 1:
                             if bind_map.get(net_name) == None:
@@ -148,7 +166,7 @@ for docker_net, net_id in networks.items():
                                 bind_map[net_name] = value
                                 append_dict['virtual_bind_ip'] = value
                             if bind_map.get(net_name) != value:
-                                log.info(f"{c.name} - Bind '{value}' not part of '{net_name}' network!")
+                                log.error(f"{c.name} - Bind '{value}' not part of '{net_name}' network!")
                                 continue
                             elif bind_map.get(net_name) == value:
                                 virtual_bind_exists = False
@@ -169,9 +187,9 @@ for docker_net, net_id in networks.items():
                                                 append_dict['virtual_bind_ip'] = value
                                                 log.info(f"{c.name} - binding to: '{value}'")
                                 if not virtual_bind_exists:
-                                    log.info(f"{c.name} - Must define VIRTUAL_BIND_NET")
+                                    log.warning(f"{c.name} - Must define VIRTUAL_BIND_NET")
                             else:
-                                log.info(f"{c.name} - Bind Map Exists: '{bind_map}'")
+                                log.warning(f"{c.name} - Bind Map Exists: '{bind_map}'")
                         else:
                             if bind_map.get(net_name) == None:
                                 # Containers with same bind_map need to be in the same network
@@ -211,11 +229,15 @@ for docker_net, net_id in networks.items():
          
             client_nets[c.name] = dict()
             for net, properties in c.attrs.get('NetworkSettings').get('Networks').items():
-                host_ip = host_container.attrs.get('NetworkSettings').get('Networks').get(net).get('IPAddress')
+                try:
+                    host_ip = host_container.attrs.get('NetworkSettings').get('Networks').get(net).get('IPAddress')
+                except AttributeError:
+                    log.error(f"Error getting ip for: '{c.name}'")
+                    continue                 
                 client_nets[c.name][net] = dict()
                 client_nets[c.name][net]['name'] = net_name
                 for attr, value in properties.items():
-                    #log.info(f"test: '{net}' - '{attr}' - '{value}'")
+                    #log.debug(f"test: '{net}' - '{attr}' - '{value}'")
                     if attr == 'IPAddress':
                         client_nets[c.name][net]['proxy_host'] = host_ip
                         client_nets[c.name][net]['ip'] = value
@@ -231,16 +253,16 @@ for docker_net, net_id in networks.items():
             #        f.write("{} {}\n".format(i, fqdn))
             proxy_clients[c.name] = copy(append_dict)
 
-#        log.info(c.attrs.keys())
-#        log.info(c.attrs.items())
-#        log.info(c.attrs.get('HostnamePath'))
-#        log.info(c.attrs.get('Args'))
-#        log.info(c.attrs.get('Name'))
-#        log.info(c.attrs.get('HostConfig'))
-#        log.info(c.stats)
+#        log.debug(c.attrs.keys())
+#        log.debug(c.attrs.items())
+#        log.debug(c.attrs.get('HostnamePath'))
+#        log.debug(c.attrs.get('Args'))
+#        log.debug(c.attrs.get('Name'))
+#        log.debug(c.attrs.get('HostConfig'))
+#        log.debug(c.stats)
     #container = client.containers.get(c)
     #for key, value in container.attrs.get('NetworkSettings').get('Networks').items():
-    #log.info(e.split(": ", maxsplit=1))
+    #log.debug(e.split(": ", maxsplit=1))
 
 #for i in client_ip_addrs:
 #    with open(hosts_file, "a") as f: 
@@ -253,8 +275,8 @@ endpoint = letsencrypt_staging if ENV_LETSENCRYPT_ENDPOINT == "dev" else letsenc
 
 caddy_data = os.path.join(ENV_DATA_PATH, "caddy")
 log.info(f"Data Directory: '{caddy_data}'")
-caddy_storage = os.path.join(caddy_data, "storage")
-if not os.path.exists(caddy_storage): os.makedirs(caddy_storage)
+storage = os.path.join(caddy_data, "storage")
+if not os.path.exists(storage): os.makedirs(storage)
 
 servers = dict()
 servers["automatic_https"]: auto_https
@@ -309,17 +331,17 @@ for client, envs in proxy_clients.items():
         elif env == 'proxy_templates':
             enable_templates = True
             values['templates'] = value
-    #log.info(f"'{client}' - Env Vars: '{list(values.items())}'")
+    #log.debug(f"'{client}' - Env Vars: '{list(values.items())}'")
     full_base_url = urljoin(host_base_url, base_url)
     log.info(f"{client} - App base URL: '{full_base_url}'")
     
     if not bind_ip in host_ext_addrs.get(ENV_HTTP_PORT).get('ext_ips') \
     or not bind_ip in host_ext_addrs.get(ENV_HTTPS_PORT).get('ext_ips'):
-        log.info(f"{client} - bind ip '{bind_ip}' is not a valid external ip! Skipping.")
+        log.warning(f"{client} - bind ip '{bind_ip}' is not a valid external ip! Skipping.")
         continue
 
     if not proto in ['http', 'https']:
-        log.info(f"{client} - protocol '{proto}' is not valid! Skipping.")
+        log.warning(f"{client} - protocol '{proto}' is not valid! Skipping.")
         continue
 
     encodings = dict()
@@ -417,7 +439,7 @@ for client, envs in proxy_clients.items():
                 else:
                     servers[bind_ip]['routes'].append(route)
             else:
-                log.info(f"{client} - VIRTUAL_BIND_IP not defined. Skipping.  ")
+                log.warning(f"{client} - VIRTUAL_BIND_IP not defined. Skipping.  ")
         # If none have virtual binds, then all VIRTUAL_HOSTS will be proxied via default
         else:     
             if servers['default'].get('routes') == None:
@@ -440,7 +462,7 @@ caddy_file = {
     "logging": {},
     "storage": {
         "module": "file_system",
-	    "root": caddy_storage
+	    "root": storage
     },
     "apps": {
         "http": {
@@ -482,8 +504,8 @@ caddy_json = json.dumps(caddy_file, indent = 4)
 with open(caddyfile_path, "w") as caddyfile: 
     caddyfile.write(caddy_json)
 
-log.info("Caddy Config:")
-log.info(subprocess.call(["cat", caddyfile_path]))
+log.debug("Caddy Config:")
+log.debug(subprocess.call(["cat", caddyfile_path]))
 
 #command = ['code-server', '--host', '0.0.0.0', '--auth', 'password', '--port', '8300']
 #subprocess.check_call(command, env=code_server_env)
@@ -491,11 +513,11 @@ log.info(subprocess.call(["cat", caddyfile_path]))
 ### Preserve docker environment variables and run supervisor process - main container process
 log.info("Start supervisor")
 ### Fix Permissions
-log.info(F"Making '{ENV_USER}' owner of '{caddy_data}'")
+log.debug(F"Making '{ENV_USER}' owner of '{caddy_data}'")
 caddy_permission = ['sudo', '--preserve-env', 'chown', '-R', f"{ENV_USER}:{ENV_USER}", caddy_data]
 subprocess.call(caddy_permission)
 ## Print environment
-log.info("Environment:")
+log.debug("Environment:")
 root_env = ['sudo', '--preserve-env', 'env']
 subprocess.call(root_env)
 command = ['sudo', '--preserve-env','supervisord', '-n', '-c', '/etc/supervisor/supervisord.conf']

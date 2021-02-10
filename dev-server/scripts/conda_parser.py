@@ -8,6 +8,7 @@ import re
 import typing
 import yaml
 import logging
+import coloredlogs
 from yaml                    import CLoader
 from conda.api               import Solver
 from conda.exceptions        import ResolvePackageNotFound
@@ -24,6 +25,8 @@ log = logging.getLogger(__name__)
 # Set log level
 verbosity = os.getenv("LOG_VERBOSITY", "INFO")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 SUPPORTED_CHANNELS = {"defaults", "nodefaults", "anaconda", "conda-forge"}
 SUPPORTED_EXTENSIONS = {

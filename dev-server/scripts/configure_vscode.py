@@ -9,6 +9,7 @@ import sys
 import json
 import bcrypt
 import logging
+import coloredlogs
 import argparse
 import json
 from urllib.parse import quote, urljoin
@@ -60,6 +61,8 @@ cli_settings = args.settings
 ### Set log level
 verbosity = cli_opts.get("verbosity")
 log.setLevel(verbosity)
+# Setup colored console logs
+coloredlogs.install(fmt='%(asctime)s [%(levelname)s] %(message)s', level=verbosity, logger=log)
 
 ### Get envs
 proxy_base_url = cli_env.get("PROXY_BASE_URL")

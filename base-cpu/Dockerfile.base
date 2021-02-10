@@ -1,13 +1,13 @@
-FROM nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04
+FROM FROM ubuntu:20.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base GPU ###########
+######## Base CPU ###########
 
 ### Image and project labels
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
         org.label-schema.docker.dockerfile="/Dockerfile.base" \
-        org.label-schema.name="Ubuntu 20.04 Cuda 11.1 and Cudnn 8 GPU base image" \
+        org.label-schema.name="Base Ubuntu 20.04 CPU image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
@@ -80,9 +80,6 @@ RUN \
         unzip \
         zip \
         g++ \
-        libgl1-mesa-glx \
-        libhdf5-dev \
-        openmpi-bin \
     # Cleanup
     && clean-layer.sh \
     && rm -rf /var/lib/apt/lists/* \

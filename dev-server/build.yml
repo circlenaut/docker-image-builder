@@ -9,11 +9,11 @@ info:
     email: "phillip@proneer.co"
     organization: "Proneer Corp."
     version: "0.1"
-#    repository: "registry.dev.example.co"
+    repository: "registry.dev.proneer.co"
 build:
     base: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
     projects:
-      - name: "base-gpu"
+         - name: "base-gpu"
         directory: "base-gpu"
         dockerfiles:
           - file: "Dockerfile.base"
@@ -37,3 +37,4 @@ build:
             tag: "latest"
             push: "false"
             from: "registry.dev.proneer.co/dev-gpu:latest"
+#            entrypoint: "python3 /docker-entrypoint.py"
