@@ -1,0 +1,114 @@
+version: '3.7'
+
+networks:
+  dev-proxy:
+  dev-net:
+
+volumes:
+  dev_home:
+  dev_workspace:
+  dev_data:
+  dev_apps:
+  proxy_data:
+  cache_data:
+  db_data:
+
+services:
+  proxy:
+    image: registry.dev.proneer.co/caddy-proxy:latest
+    container_name: caddy-proxy
+    restart: unless-stopped
+    networks:
+      - dev-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/data/workspaces/magento-dev/caddy:/data"
+    environment:
+      DATA_PATH: "/data"
+      SSL_ISSUER: "internal"
+      LETSENCRYPT_EMAIL: "admin@proneer.co"
+      LETSENCRYPT_ENDPOINT: "dev"
+      HTTPS_PORT: "443"
+  magento-dev:
+    image: registry.dev.proneer.co/magento-dev-server:latest
+    container_name: magento_dev
+    restart: unless-stopped
+    networks:
+      - dev-proxy
+      - dev-net
+    ports:
+      - "2222:22"
+    volumes:
+      - "./ports.conf:/etc/apache2/ports.conf"
+      - "./magento2.conf:/etc/apache2/sites-available/magento2.conf"
+      - "./apache2.conf:/etc/supervisor/conf.d/apache2.conf"
+      - "./start.sh:/workspace/on_startup.sh"
+      - "./auth.json:/workspace/.magento2/auth.json"
+      - "./users.yml:/scripts/config.yml"
+      - "./setup.sh:/workspace/installers/magento.sh"
+      #- "/data/workspaces/magento-dev/home:/home"
+      #- "/data/workspaces/magento-dev/workspace:/workspace"
+      #- "/data/workspaces/magento-dev/data:/data"
+      #- "/data/workspaces/magento-dev/apps:/apps"
+      - "dev_home:/home"
+      - "dev_workspace:/workspace"
+      - "dev_data:/data"
+      - "dev_apps:/apps"
+    environment:
+      LOG_VERBOSITY: "DEBUG"
+      VIRTUAL_HOST: "pod2.colab.proneer.co"
+      VIRTUAL_PORT: "80"
+      VIRTUAL_PROTO: "http"
+      CONFIG_BACKUP_ENABLED: "true"
+      #MAX_NUM_THREADS: "auto"
+    depends_on:
+      - db
+      - elasticsearch
+      - cache
+
+  db:
+    image: bitnami/mariadb:${MARIA_DB_VERSION:-10.4}
+    container_name: db
+    restart: unless-stopped
+    networks:
+      - dev-net
+    volumes:
+      - "db_data:/bitnami/mariadb"
+    environment:
+      MARIADB_ROOT_USER: "root"
+      MARIADB_ROOT_PASSWORD: "${MARIA_DB_PASSWORD:-magento2}"
+      MARIADB_DATABASE: "magento2"
+      MARIADB_USER: "magento2"
+      MARIADB_PASSWORD: "${MARIA_DB_PASSWORD:-magento2}"
+      ALLOW_EMPTY_PASSWORD: "no"
+
+  elasticsearch:
+    image: elasticsearch:7.6.2
+    container_name: elasticsearch
+    restart: unless-stopped
+    networks:
+      - dev-net
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 2g
+
+  cache:
+    image: bitnami/redis:${REDIS_VERSION:-latest}
+    container_name: cache
+    restart: unless-stopped
+    networks:
+      - dev-net
+    volumes:
+      - "cache_data:/bitnami/redis/data"
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-redis}"
+      REDIS_DISABLE_COMMANDS: FLUSHDB,FLUSHALL

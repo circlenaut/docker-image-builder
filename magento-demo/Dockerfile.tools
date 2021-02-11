@@ -1,0 +1,42 @@
+FROM registry.dev.proneer.co/magento:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+######## MAGENTO TOOLS ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.tools" \
+        org.label-schema.name="Magento Development tools" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install phpMyAdmin
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        phpmyadmin \
+#        php-zip \
+#        php-gd \
+#        php-json \
+#        php-curl
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install GOSU , SMTP and other packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gosu \
+        bc \
+        msmtp \
+        msmtp-mta
+
+

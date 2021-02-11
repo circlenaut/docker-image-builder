@@ -1,0 +1,56 @@
+FROM registry.dev.proneer.co/lamp:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+######## MAGENTO ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.base" \
+        org.label-schema.name="Magento based of the Lamp stack image" \
+        org.label-schema.url="https://www.proneer.co"
+
+USER root
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install basic packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+    libfreetype6-dev \
+    libicu-dev \
+    libjpeg-turbo8 \
+    libmcrypt-dev \
+    libpng-dev \
+    libxslt1-dev \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install Composer globally
+#RUN curl -S https://getcomposer.org/installer | php \
+#    && mv composer.phar /usr/local/bin/composer \
+#    && chmod a+x /usr/local/bin/composer
+
+### Install composer
+#RUN curl -sS https://getcomposer.org/installer | php -- \
+#    --install-dir=/usr/local/bin \
+#    --filename=composer \
+#    --version=1.10.17
+
+### Install Magerun2 from n98; php7.4 only
+RUN curl -O https://files.magerun.net/n98-magerun2.phar; \
+    chmod +x ./n98-magerun2.phar; \
+    mv ./n98-magerun2.phar /usr/local/bin/n98-magerun2
+
+ADD https://raw.githubusercontent.com/colinmollenhour/credis/master/Client.php /credis.php
+COPY configs/php.ini /usr/local/etc/php/conf.d/888-fballiano.ini
+COPY configs/ports.conf /etc/apache2/ports.conf
+COPY scripts/register-host-on-redis.php /register-host-on-redis.php
+COPY scripts/unregister-host-on-redis.php /unregister-host-on-redis.php
