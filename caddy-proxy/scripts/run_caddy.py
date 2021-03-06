@@ -25,8 +25,6 @@ import docker
 import coloredlogs
 import logging
 from copy import copy
-### Get Caddy settings template
-#from caddyfile import template
 from urllib.parse import quote, urljoin
 
 ### Global Vars
@@ -448,6 +446,8 @@ for client, envs in proxy_clients.items():
                 servers['default']['routes'] = [route]
             else:
                 servers['default']['routes'].append(route)
+    else:
+        log.error("FQDN not defined")
 
 caddy_file = {
     "admin": {
