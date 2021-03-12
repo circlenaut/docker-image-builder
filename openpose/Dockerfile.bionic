@@ -1,0 +1,61 @@
+FROM registry.dev.proneer.co/cuda:10.1-cudnn7-devel-ubuntu18.04
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Openpose Ubuntu 18.04 ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.bionic" \
+        org.label-schema.name="Openpose Ubuntu 18.04 Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive \
+    RESOURCES_PATH="/resources"
+
+### Install OpenCV dev libraries
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libopencv-dev \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+### Load OpenPose
+WORKDIR $RESOURCES_PATH/openpose-docker
+ENV \
+    OPENPOSE_VERSION="v1.6.0"
+RUN \
+    echo "**** building and installing openpose $OPENPOSE_VERSION ****" \
+    && git clone --depth 1 --branch $OPENPOSE_VERSION https://github.com/CMU-Perceptual-Computing-Lab/openpose.git ./openpose \
+    && cd ./openpose \
+    && git submodule update --init --recursive --remote \
+    # Clean build directories
+    && rm -rf build
+
+#WORKDIR $RESOURCES_PATH/openpose-docker
+#RUN \
+#    OPENPOSE_VERSION="v1.6.0" \
+#    && echo "**** installing openpose $OPENPOSE_VERSION ****" \
+#    && wget --no-verbose https://github.com/CMU-Perceptual-Computing-Lab/openpose/archive/$OPENPOSE_VERSION.tar.gz  -O ./openpose.tar.gz \
+#    && tar xfz ./openpose.tar.gz && mv ./openpose-$OPENPOSE_VERSION/ ./openpose \
+#    && rm ./openpose.tar.gz
+
+### Build Openpose
+WORKDIR $RESOURCES_PATH/openpose-docker/openpose/build  
+RUN \
+    cmake \
+        -D BUILD_PYTHON=ON \
+        -D USE_CUDNN=ON \
+        -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
+        -D DOWNLOAD_BODY_MPI_MODEL=ON \
+        -D DOWNLOAD_BODY_COCO_MODE=ON \
+        .. \
+    && make -j `nproc`
+#    && ln -s $RESOURCES_PATH/openpose-docker/openpose/bin? /usr/bin/
+
+WORKDIR /root

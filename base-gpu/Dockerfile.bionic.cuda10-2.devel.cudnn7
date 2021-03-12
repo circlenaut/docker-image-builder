@@ -1,0 +1,36 @@
+FROM registry.dev.proneer.co/cuda:10.2-devel-ubuntu18.04
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Base CUDA 10.2 Devel Cudnn7 ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.cuda10-2.devel.cudnn7" \
+        org.label-schema.name="Base Ubuntu 18.04 CUDA 10.2 Development Image with Cudnn7" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install Cudnn7
+ENV \
+    CUDA="10.2" \ 
+    CUDNN_VERSION="7.6.5.32"
+
+LABEL com.nvidia.cudnn.version="${CUDNN_VERSION}"
+
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libcudnn7=$CUDNN_VERSION-1+cuda$CUDA \
+        libcudnn7-dev=$CUDNN_VERSION-1+cuda$CUDA \
+    && apt-mark hold \
+        libcudnn7 \
+    # Cleanup - cannot use cleanup script here, otherwise too much is removed
+    && apt-get clean \
+    && rm -rf $HOME/.cache/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/lib/apt/lists/*

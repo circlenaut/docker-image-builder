@@ -38,6 +38,7 @@ import json
 import enum
 import platform
 import argparse
+import hashlib
 import subprocess
 import logging
 import shutil
@@ -148,8 +149,11 @@ def translate(pat):
     return res + '$'
 
 ### Define classes
-class BuildError(ValueError):
-    '''raise this when there's a ValueError during the build process'''
+class BuildError(Exception):
+    '''raise this when there's an Exception during the build process'''
+
+class LoadError(Exception):
+    '''raise this when there's an Exception loading config files'''
 
 class Settings(object):
     def __init__(self):
@@ -167,7 +171,8 @@ class Settings(object):
         self.parser.add_argument('--dryrun', action='store_true', default=False, required=False, help='Execute as a dry run')
         self.parser.add_argument('--gzip', action='store_true', default=False, required=False, help='Compress context files')
         self.parser.add_argument('--overwrite', action='store_true', default=False, required=False, help='Overwrite existing build files')
-        self.parser.add_argument('--rm_build_files', action='store_true', default=False, required=False, help='Overwrite existing build files')
+        self.parser.add_argument('--show', action='store_true', default=False, required=False, help='Show Dockerfiles on console')
+        self.parser.add_argument('--rm_build_files', action='store_true', default=False, required=False, help='Remove build files')
         self.parser.add_argument('-f', '--force', action='store_true', default=False, required=False, help='Force a command without checks')
         self.parser.add_argument('-rmi', '--rm_inter_imgs', action='store_true', default=False, required=False, help='Remove intermediary images')
         #self.parser.add_argument('-s, --save', type=str, required=False, help="Location to save image")
@@ -308,6 +313,12 @@ class Basics(Settings):
     def print_list(self, lst):
         for e in lst:
             print(e)
+
+    def in_list(self, e, lst):
+        if e in lst:
+            return True
+        else:
+            return False
 
     def is_type_path(self, entry):
         spl = entry.split(os.sep)
@@ -616,9 +627,13 @@ class Operations(Logging):
         self.config_path = os.path.normpath(self.arg.config)
         ### Set parent working directory
         self.build_dir =  os.path.join(self.work_dir, "build")
-#        logger.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
+#        self.logger.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
         self.parent_dir = os.path.dirname(self.work_dir)
-        self.configs = self.load_config()
+        try:
+            self.configs = self.load_config()
+        except LoadError as err:
+            self.logger.error(f"'{err}'")
+            sys.exit()         
         self.project_build_dir = os.path.join(self.build_dir, os.path.basename(self.configs.get("info").get("name")))
         # Create build directory
         if self.arg.dryrun:
@@ -633,9 +648,17 @@ class Operations(Logging):
 
     def load_config(self):
         if self.valid_file(self.config_path, logger=True):
-            #Try
-            schema = yamale.make_schema(os.path.join(self.work_dir, 'schema.yaml'))
-            data = yamale.make_data(self.config_path)
+            schema_path = os.path.join(self.work_dir, 'schema.yaml')
+            try:
+                schema = yamale.make_schema(schema_path)
+            except Exception as err:
+                self.logger.error(f"failed to load: '{schema_path}'")
+                raise LoadError(f"{err}") 
+            try:
+                data = yamale.make_data(self.config_path)
+            except Exception as err:
+                self.logger.error(f"failed to load: '{self.config_path}'")
+                raise LoadError(f"{err}")            
             valid_config = self.yaml_valid(schema, data)
             # Load config as yaml object
             if valid_config:
@@ -643,16 +666,16 @@ class Operations(Logging):
                 try:
                     with open(self.config_path, "r") as f:
                         loaded_config = yaml.load(f, Loader=yaml.FullLoader)
-                except PermissionError:
+                except PermissionError as perm:
                     self.logger.error(f"permission denied: '{self.config_path}'")
-                    return
-                except:
-                    self.logger.error(f"failed to copy: '{self.config_path}'")
-                    return 
+                    raise LoadError(f"{perm}")
+                except Exception as err:
+                    self.logger.error(f"failed to load: '{self.config_path}'")
+                    raise LoadError(f"{err}") 
             else:
-                logger.error(f"Invalid config file: '{self.config_path}'")
+                self.logger.error(f"Invalid config file: '{self.config_path}'")
         else:
-            logger.debug("No yaml config files available to load")
+            self.logger.debug("No yaml config files available to load")
             sys.exit()
         return loaded_config
 
@@ -669,11 +692,11 @@ class Operations(Logging):
                 return
             if check:
                 st = os.stat(source)
-                if self.is_hash_same(self.get_file_hash(source), self.get_file_hash(target), logger=True):
+                if self.is_hash_same(self.get_file_hash(source), self.get_file_hash(target)):
                     success = True
                     self.logger.debug("copied '{s}' to '{t}' with hash '{h}'".format(s=source, t=target, h=self.get_file_hash(source)))
                 else:
-                    self.logger.error(f"error copying up: '{source}'")
+                    self.logger.error(f"error copying: '{source}'")
         return success
 
     def copy_dir(self, source, target):
@@ -691,15 +714,16 @@ class Operations(Logging):
             except PermissionError:
                 self.logger.error(f"permission denied: '{source}'")
                 return
-            except:
+            except Exception as err:
                 self.logger.error(f"failed to copy: '{source}'")
+                self.logger.error(f"{err}")
                 return
             st = os.stat(source)
-            if self.is_hash_same(self.get_file_hash(source), self.get_file_hash(target), logger=True):
+            if self.is_hash_same(self.get_file_hash(source), self.get_file_hash(target)):
                 success = True
                 self.logger.debug(" '{s}' saved at '{t}' with hash '{h}'".format(s=source, t=target, h=self.get_file_hash(source)))
             else:
-                self.logger.error(f"error backing up: '{source}'")
+                self.logger.error(f"error copying: '{source}'")
         return success
 
     def get_file_hash(self, path, algo="blake"):
@@ -717,8 +741,8 @@ class Operations(Logging):
             except PermissionError:
                 self.logger.error(f"permission denied: '{path}'")
                 return
-            except:
-                self.logger.error(f"failed to copy: '{path}'")
+            except Exception as err:
+                self.logger.error(f"{err}")
                 return
             file_hash_digest = file_hash.hexdigest()
             return file_hash_digest
@@ -767,21 +791,21 @@ class Operations(Logging):
 
     def recursive_chown(self, path, user, group):
         for dirpath, dirnames, filenames in os.walk(path):
-            chown(dirpath, user, group)
+            self.chown(dirpath, user, group)
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
                 # Don't set permissions on symlinks
                 if not os.path.islink(file_path):
-                        chown(file_path, user, group)
+                        self.chown(file_path, user, group)
 
     def recursive_chmod(self, path, mode):
         for dirpath, dirnames, filenames in os.walk(path):
-            chmod(dirpath, mode)
+            self.chmod(dirpath, mode)
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
                 # Don't set permissions on symlinks
                 if not os.path.islink(file_path):
-                        chmod(file_path, mode)
+                        self.chmod(file_path, mode)
 
     def recursive_make_dir(self, path):
         def make_forward(dest):
@@ -797,8 +821,8 @@ class Operations(Logging):
                 # create dir and set permissions and mask
                 self.logger.debug(f"creating: '{dest}' set to: '{user}:{group}:{mask}'")
                 os.mkdir(dest)
-                chown(dest, user, group)
-                chmod(dest, mask)
+                self.chown(dest, user, group)
+                self.chmod(dest, mask)
             else:
                 self.logger.error(f"parent directory does not exist! '{parent_dir}'")
 
@@ -881,7 +905,7 @@ class Operations(Logging):
             if os.path.exists(dst_parent_dir):
                 copy_check(src, dst, overwrite, user, group, mask)
             elif not os.path.exists(dst_parent_dir):
-                recursive_make_dir(dst_parent_dir)
+                self.recursive_make_dir(dst_parent_dir)
                 copy_check(src, dst, overwrite, user, group, mask)
         else:
             self.logger.error(f"source path does not exist! '{src}', exiting")
@@ -899,29 +923,48 @@ class Docker(Operations):
     def __init__(self):
         import docker
         Operations.__init__(self)
-        #clients = docker.from_env()
         self.cli = docker.APIClient(base_url='unix://var/run/docker.sock')
         self.logger.debug(self.cli.version())
         self.errors = docker.errors
         self.color_logs()
+        self.build_success = True
 
     def process_stream(self, line):
         ln = json.loads(line.decode("utf-8").rstrip()).get("stream")
+        def rm_imgs():
+            try:
+                inter_image = self.cli.inspect_container(self.intermediate_container).get("Image")
+                self.logger.warning(f"removing image: {inter_image}")
+                self.cli.remove_container(self.intermediate_container, force=True)
+                self.cli.remove_image(inter_image, force=True)
+            except self.errors.APIError as err:
+                raise BuildError(f"Builder: remove error - {err}")
+        
         if ln != None and not ln.isspace():
             ln = ln.rstrip()
             items = ln.split()
             msg = [i for i in items[1:]]
-            if items[0] == "\x1b[91mE:": # Look for apt errors "E:", formated with red colorcode
+            error_prompts = ["fatal:", "ERROR:", "error:"]
+            if "E:" in items[0]:
                 if self.arg.rm_inter_imgs:
-                    try:
-                        inter_image = self.cli.inspect_container(self.intermediate_container).get("Image")
-                        self.logger.warning(f"removing image: {inter_image}")
-                        self.cli.remove_container(self.intermediate_container, force=True)
-                        self.cli.remove_image(inter_image, force=True)
-                    except self.errors.APIError as err:
-                        raise BuildError(f"Builder: remove error - {err}")
-
-                raise BuildError("Builder: apt error - {m}".format(m=" ".join(msg)))
+                    rm_imgs()
+                raise BuildError("Builder Apt Error: {m}".format(m=" ".join(msg)))
+            elif "/bin/sh:" in items[0] and len(msg) > 0:
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Shell Error: {m}".format(m=" ".join(msg)))
+            elif "CMake" in items[0] and "Error:" in items[1]:
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Cmake Error: {m}".format(m=" ".join(msg[1:])))
+            if any([self.in_list(e, items[0]) for e in error_prompts]):
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Error: {m}".format(m=" ".join(msg)))
+            #elif "\x1b[91m" in items[0]: # Look for catchall errors "red text"
+            #    if self.arg.rm_inter_imgs:
+            #        rm_imgs()
+            #    raise BuildError("Builder: error - {m}".format(m=" ".join(msg)))
             elif items[0] == "Step": # Look for build steps
                 self.logger.info("Builder: Step {m}".format(m=" ".join(msg)))
             elif items[0] == "--->": # Look for build progression info
@@ -930,6 +973,7 @@ class Docker(Operations):
                 self.logger.info("Builder: {m}".format(m=" ".join(msg)))
             elif items[0] == "Successfully": # Look for success info
                 self.logger.info("Builder: Successfully {m}".format(m=" ".join(msg)))
+                self.build_success = True
             elif items[0] == "Fetched": # Look for fetch info
                 self.logger.info("Builder: Fetched {m}".format(m=" ".join(msg)))
             elif items[0] == "Reading": # Look for reading info
@@ -941,6 +985,8 @@ class Docker(Operations):
                 get_idx = items[0].split(":")[1]
                 if get == "Get":
                     self.logger.info("Builder: Get({i}) {m}".format(i=get_idx, m=" ".join(msg)))
+                else:
+                    self.logger.debug(ln)
             else:
                 self.logger.debug(ln)
 
@@ -1245,7 +1291,8 @@ class Docker(Operations):
                             count+=1
 
                         dockerfile_mod_debug = s.join(dockerfile_mod_debug)
-                        self.logger.debug(dockerfile_mod_debug)
+                        if self.arg.show:
+                            self.logger.debug(dockerfile_mod_debug)
             
                         # Encode before building
                         dockerfile_encoded = io.BytesIO(dockerfile_mod.encode('utf-8'))
@@ -1264,32 +1311,48 @@ class Docker(Operations):
                         
                         encoding = None
                         encoding = 'gzip' if self.arg.gzip else encoding
-                    
-                        dockerfile_obj = self.makebuildcontext(project_dir, dockerfile_encoded, dockerfile_processed, docker_exclude, self.arg.gzip)     
 
-                        if not self.arg.dryrun:
-                            try:
-                                [self.process_stream(line) for line in self.cli.build(
-                                    fileobj=dockerfile_obj, 
-                                    rm=True, 
-                                    tag=image_docker_path, 
-                                    custom_context=True,
-                                )]
-                            except self.errors.APIError   as a_err:
-                                self.logger.error(f"Docker API error: {a_err}")
-                                sys.exit()
-                            except self.errors.BuildError as b_err:
-                                self.logger.error(f"Docker Build error: {b_err}")
-                                sys.exit()
-                            except BuildError as b_err:
-                                self.logger.error(f"{b_err}")
-                                sys.exit()
-                            except TypeError as t_err:
-                                self.logger.error(f"error: {t_err}")
-                                sys.exit()                  
-                            except:
-                                self.logger.error("unknown error")
-                                sys.exit()
+                        dockerfile_obj = self.makebuildcontext(project_dir, dockerfile_encoded, dockerfile_processed, docker_exclude, self.arg.gzip)  
+                        
+                        self.run_build = True if self.build_success else False
+                        if not self.arg.dryrun and self.build_success:
+                            if self.run_build:
+                                try:
+                                    [self.process_stream(line) for line in self.cli.build(
+                                        fileobj=dockerfile_obj, 
+                                        rm=True, 
+                                        tag=image_docker_path, 
+                                        custom_context=True,
+                                    )]
+                                    self.run_build = True
+                                except self.errors.APIError as a_err:
+                                    self.logger.error(f"Docker API error: {a_err}")
+                                    self.run_build = False
+                                    self.build_success = False
+                                except self.errors.BuildError as b_err:
+                                    self.logger.error(f"Docker Build error: {b_err}")
+                                    self.run_build = False
+                                    self.build_success = False
+                                except BuildError as b_err:
+                                    self.logger.error(f"{b_err}")
+                                    self.run_build = False
+                                    self.build_success = False
+                                except TypeError as t_err:
+                                    self.logger.error(f"error: {t_err}")
+                                    self.run_build = False
+                                    self.build_success = False                 
+                                except:
+                                    self.logger.error("unknown error")
+                                    self.run_build = False
+                                    self.build_success = False
+                                if not self.run_build and not self.build_success:
+                                    self.logger.info(f"failed to build: '{image_docker_path}'")
+                                    self.logger.info(f"dockerfile: '{dockerfile_path}'")
+                                    sys.exit()
+                            else:
+                                self.logger.info(f"succesfully built: '{image_docker_path}'")
+                                self.run_build = False
+                                self.build_success = True
                             #if save:
                             #    f = open('/tmp/busybox-latest.tar', 'wb')
                             #    for chunk in image:
@@ -1301,10 +1364,9 @@ class Docker(Operations):
                                 [pushstat.store(line) for line in self.cli.push(
                                     image_docker_path, stream=True, decode=True
                                 )]
-
                     else:
                         self.logger.error(f"Dockerfile does not exists: '{dockerfile_path}")
-                        sys.exit()
+                        sys.exit()                
             else:
                 self.logger.error(f"Project dir does not exists: '{project_dir}")
                 sys.exit()
@@ -1313,14 +1375,15 @@ class Docker(Operations):
                 
         s = '\n'
         dockerfile_final = s.join(dockerfile_final)
-        self.logger.debug("Final dockerfile")
-        self.logger.debug(dockerfile_final)
+        if self.arg.show:
+            self.logger.debug("Final dockerfile")
+            self.logger.debug(dockerfile_final)
 
         ### Write final Dockerfile
         dockerfile_final_path = os.path.join(self.project_build_dir, "Dockerfile")
         if self.arg.dryrun:
             self.logger.info(f"Dry run: Writing final Dockerfile to: '{dockerfile_final_path}")
-        if not self.arg.dryrun:
+        if not self.arg.dryrun and self.build_success:
             self.logger.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
             with open(dockerfile_final_path, "w") as f: 
                 f.write(dockerfile_final)
@@ -1334,7 +1397,7 @@ class Docker(Operations):
             self.chmod(self.log_file, "664")
 
             ### Remove residual project files
-            if rm_build_files:
+            if self.arg.rm_build_files:
                 for p in project_files:
                     if os.path.exists(p):
                         self.logger.info(f"removing: '{p}'")

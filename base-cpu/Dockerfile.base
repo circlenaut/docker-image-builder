@@ -1,4 +1,4 @@
-FROM FROM ubuntu:20.04
+FROM ubuntu:20.04
 MAINTAINER proneer <phillip@proneer.co>
 
 ######## Base CPU ###########
@@ -7,7 +7,7 @@ MAINTAINER proneer <phillip@proneer.co>
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
         org.label-schema.docker.dockerfile="/Dockerfile.base" \
-        org.label-schema.name="Base Ubuntu 20.04 CPU image" \
+        org.label-schema.name="Base Ubuntu 20.04 CPU Image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
@@ -33,6 +33,7 @@ RUN \
         software-properties-common \
         dialog \
         gcc \
+        cmake \
         python3.8 \
     # Cleanup
     && clean-layer.sh \
@@ -63,9 +64,11 @@ RUN \
 
 ### Set up locales
 RUN locale-gen en_US.UTF-8
-ENV LANG C.UTF-8
-ENV LANGUAGE C.UTF-8
-ENV LC_ALL C.UTF-8
+ENV \
+    LANG=C.UTF-8 \
+    LANGUAGE=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
 RUN /usr/sbin/update-locale
 
 ### Install basic utilities

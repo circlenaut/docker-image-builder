@@ -1,0 +1,99 @@
+FROM registry.dev.proneer.co/cuda:10.1-cudnn7-devel-ubuntu18.04
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Openpose Ubuntu 18.04 Base ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.bionic.base" \
+        org.label-schema.name="Openpose Ubuntu 18.04 Base Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive \
+    RESOURCES_PATH="/resources"
+
+### Install 
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        hdf5-helpers \
+        libaec-dev \
+        libatlas-base-dev \
+        libatlas3-base \
+        libhdf5-cpp-100 \
+        libhdf5-dev \
+        libhdf5-serial-dev \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+### Install Protobuf
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libleveldb-dev \
+        libprotobuf-dev \
+        libprotoc10 \
+        libsnappy-dev \
+        protobuf-compiler \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+### Install 
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ocl-icd-opencl-dev \
+        opencl-c-headers \
+        opencl-clhpp-headers \
+        opencl-headers \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+### Install 
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        liblmdb-dev \
+        lmdb-doc \
+        libviennacl-dev \
+        libgtk2.0-dev \
+        libgtk-3-dev \
+        libgoogle-glog-dev \
+        libboost-all-dev \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+#WORKDIR $RESOURCES_PATH/cmake
+#RUN \
+#    wget https://github.com/Kitware/CMake/releases/download/v3.19.6/cmake-3.19.6-Linux-x86_64.tar.gz \
+#    && tar xzf cmake-3.19.6-Linux-x86_64.tar.gz -C /opt \
+#    && rm cmake-3.19.6-Linux-x86_64.tar.gz
+#ENV \
+#    PATH="/opt/cmake-3.19.6-Linux-x86_64/bin:${PATH}"
+
+### Build compatable version of Cmake
+WORKDIR $RESOURCES_PATH/cmake
+ENV \
+    CMAKE_VERSION="3.16.0"
+RUN \
+    echo "**** building and installing cmake v$CMAKE_VERSION ****" \
+    && apt-get update \
+    && apt-get purge -y \
+        cmake \
+    && apt-get install -y \
+        libssl-dev \
+    && wget --no-verbose https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz  -O ./cmake.tar.gz \
+    && tar xfz ./cmake.tar.gz \
+    && rm ./cmake.tar.gz \
+    && cd ./cmake-$CMAKE_VERSION/ \
+    && ./bootstrap && make && make install \
+    && ln -s /usr/local/bin/ccmake /usr/bin/ \
+    && ln -s /usr/local/bin/cmake /usr/bin/

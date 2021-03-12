@@ -1,0 +1,43 @@
+FROM registry.dev.proneer.co/cuda:10.2-ubuntu18.04
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Base CUDA 10.2 Runtime ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.cuda10-2.runtime" \
+        org.label-schema.name="Base Ubuntu 18.04 Cuda 10.2 Runtime Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install CUDA runtime libraries
+ENV \
+    CUDA="10.2" \
+    CUDA_PKG="10-2" \
+    CUDA_PKG_VERSION="10-2=10.2.89-1" \
+    NCCL_VERSION="2.8.4"
+    
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        cuda-libraries-$CUDA_PKG_VERSION \
+        cuda-npp-$CUDA_PKG_VERSION \
+        cuda-nvtx-$CUDA_PKG_VERSION \
+        libcublas10=10.2.2.89-1 \
+        libnccl2=$NCCL_VERSION-1+cuda10.2 \
+    # apt from auto upgrading the cublas package. See https://gitlab.com/nvidia/container-images/cuda/-/issues/88
+    && apt-mark hold \
+        libcublas10 \
+        libnccl2 \
+    # Cleanup - cannot use cleanup script here, otherwise too much is removed
+    && apt-get clean \
+    && rm -rf $HOME/.cache/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root

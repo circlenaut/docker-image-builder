@@ -1,0 +1,155 @@
+version: "3.8"
+
+networks:
+  proxy:
+
+services:
+#  nginx-proxy:
+#    image: jwilder/nginx-proxy
+#    container_name: nginx-proxy
+#    restart: unless-stopped
+#    networks:
+#      - proxy
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+#      - "./letsencrypt/certs:/etc/nginx/certs"
+#      - "./letsencrypt/vhost-d:/etc/nginx/vhost.d"
+#      - "./letsencrypt/html:/usr/share/nginx/html"
+
+#  letsencrypt-proxy:
+#    image: jrcs/letsencrypt-nginx-proxy-companion
+#    container_name: letsencrypt-proxy
+#    restart: unless-stopped
+#    networks:
+#      - proxy
+#    volumes:
+#      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "./letsencrypt/certs:/etc/nginx/certs"
+#      - "./letsencrypt/vhost-d:/etc/nginx/vhost.d"
+#      - "./letsencrypt/html:/usr/share/nginx/html"
+#    environment:
+#      DEFAULT_EMAIL: "admin@proneer.co"
+#      NGINX_PROXY_CONTAINER: "nginx-proxy"
+
+  proneer-proxy:
+    image: registry.dev.proneer.co/caddy-proxy:latest
+    container_name: caddy-proxy
+    restart: unless-stopped
+    networks:
+      - proxy
+#      - test_net
+    ports:
+      - "80:80"
+      - "443:443"
+#      - "127.0.0.1:80:80"
+#      - "127.0.0.1:443:443"
+#      - "10.95.46.219:80:80"
+#      - "10.95.46.219:443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "./letsencrypt/certs:/etc/nginx/certs"
+#      - "./letsencrypt/vhost-d:/etc/nginx/vhost.d"
+#      - "./caddy:/etc/caddy"
+    environment:
+      DATA_PATH: "/data"
+      SSL_ISSUER: "internal"
+      LETSENCRYPT_EMAIL: "admin@proneer.co"
+      LETSENCRYPT_ENDPOINT: "dev"
+#      BIND_IPS: "10.95.46.219, 127.0.0.1"
+      HTTP_PORT: "80"
+      #HTTPS_ENABLE: "true"
+      AUTO_HTTPS: "true"
+      HTTPS_PORT: "443"
+#      BASE_URL: "/caddy"
+
+  pod2-colab:
+#    image: mltooling/ml-workspace-minimal:${POD2_VERSION?err}
+#    image: ezeddin/code-server:conda.dev.gpu
+    image: registry.dev.proneer.co/dev-server:latest
+    container_name: pod2-colab
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "2222:22"
+#      - "8080:8080"
+#    expose:
+#       - "8080"
+    networks:
+      - proxy
+    volumes:
+      - "./tests/config_test.yml:/scripts/config.yml"
+#      - "./tests/pod2-colab/envs:/opt/conda/envs"
+#      - "/data/workspaces/pod2/envs:/opt/conda/envs"
+#      - "/data/workspaces/pod2/workspace:/workspace"
+#      - "./tests/home:/home"
+#      - "./tests/pod2-colab/environment.yml:/data/environment.yml"
+      - "./tests/conda-parser:/data/conda-parser"
+      - "./tests/conda-parser/environment.yml:/data/environment.yml"
+
+#      - "./tests/cp-vton-plus:/data/cp-vton-plus"
+#      - "./tests/workspace:/workspace"
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#          - 'driver': 'nvidia'
+#            'count': 1
+#            'capabilities': ['gpu', 'utility']
+    environment:
+      LOG_VERBOSITY: "DEBUG"
+      VIRTUAL_HOST: "pod2.colab.proneer.co"
+#      VIRTUAL_BIND_IP: "10.95.46.219"
+#      VIRTUAL_BIND_NET: "proxy"
+      #VIRTUAL_PORT: "8300"
+      VIRTUAL_PORT: "80"
+      VIRTUAL_PROTO: "http"
+      #VIRTUAL_BASE_URL: "/"
+      PROXY_ENCODINGS_GZIP: "true"
+      PROXY_ENCODINGS_ZSTD: "true"
+      PROXY_TEMPLATES: "true"
+#      WORKSPACE_SSL_ENABLED: "false"
+#      WORKSPACE_AUTH_USER: "test"
+#      WORKSPACE_AUTH_PASSWORD: "${POD2_AUTH_PASSWORD:-password}"
+      #FB_BASE_URL: "/data"
+      #FB_PORT: "8055"
+#      WORKSPACE_PORT: "8080"
+#      VSCODE_BIND_ADDR: "0.0.0.0:8300"
+#      VSCODE_BASE_URL: "/code"
+      CONDA_ENV_PATH: "/data/environment.yml"
+      CONFIG_BACKUP_ENABLED: "true"
+#      SHARED_LINKS_ENABLED: "true"
+#      MAX_NUM_THREADS: "auto"
+      NVIDIA_VISIBLE_DEVICES: "all"
+
+  test1-colab:
+    image: jwilder/whoami
+    container_name: test1-colab
+    restart: unless-stopped
+    networks:
+      - proxy
+    environment:
+      VIRTUAL_HOST: "test1.colab.proneer.co"
+#      VIRTUAL_BIND_IP: "10.95.46.219"
+#      VIRTUAL_BIND_NET: "proxy"
+      VIRTUAL_PORT: "8000"
+      VIRTUAL_PROTO: "http"
+
+  test2-colab:
+    image: jwilder/whoami
+    container_name: test2-colab
+    restart: unless-stopped
+    networks:
+      - proxy
+ #     - test_net
+    environment:
+      VIRTUAL_HOST: "test2.colab.proneer.co"
+#      VIRTUAL_BIND_IP: "127.0.0.1"
+#      VIRTUAL_BIND_NET: "test_net"
+      VIRTUAL_PORT: "8000"
+      VIRTUAL_PROTO: "http"
+      PROXY_ENCODINGS_GZIP: "true"
+      PROXY_ENCODINGS_ZSTD: "true"
+      PROXY_TEMPLATES: "true"

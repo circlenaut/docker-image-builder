@@ -239,4 +239,4 @@ prime/
 
 
 # Temp exclude
-measurement-dev
+/measurement-api
