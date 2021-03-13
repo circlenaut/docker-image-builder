@@ -7,7 +7,7 @@
 
 ## Create Sudo Rule
 
-Create or append to '/etc/sudoers.d/docker':
+Create or append to: '/etc/sudoers.d/docker'
     
     %devs   ALL=(ALL)       NOPASSWD: /usr/bin/docker
 
