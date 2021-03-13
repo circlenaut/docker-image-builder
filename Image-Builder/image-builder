@@ -532,7 +532,8 @@ class Operations(Logging):
         Logging.__init__(self)
         self.config_path = os.path.normpath(self.arg.config)
         self.etc_path = "/usr/local/etc/image-builder"
-        self.work_dir = os.path.dirname(self.config_path)
+        self.default_images = "/opt/docker/Docker-Images"
+        self.work_dir = os.path.dirname(self.config_path) if not os.path.dirname(self.config_path) == "" else "."
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         ### Set parent working directory
         self.build_dir =  os.path.join(self.work_dir, "build")
@@ -760,8 +761,9 @@ class Operations(Logging):
         elif path_elements[0] == os.path.sep:
             root = os.path.sep
         else:
-            self.logger.error(f"Unknown base seperator! '{path_elements[0]}'")
-            sys.exit()
+            root = "./"
+            #self.logger.error(f"Unknown base seperator! '{path_elements[0]}'")
+            #sys.exit()
         count = 0
         last_path = root
         for e in path_elements:
@@ -1065,6 +1067,7 @@ class Docker(Operations):
 
             ### Scan project directories
             project_dir = os.path.join(self.parent_dir, p.get("directory"))
+            project_dir = project_dir if self.valid_dir(project_dir) else os.path.join(self.default_images, project_dir)
             
             if os.path.exists(project_dir):
                 self.logger.info(f"processing dockerfiles in: '{project_dir}")
