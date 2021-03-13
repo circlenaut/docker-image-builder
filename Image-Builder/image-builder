@@ -1064,12 +1064,20 @@ class Docker(Operations):
             for df in p.get("dockerfiles"):
                 dockerfiles.append(df.get("file"))
 
-            ### Scan project directories
+            ### Define directory to scan
             project_dir = os.path.join(self.parent_dir, p.get("directory"))
-            project_dir = project_dir if self.valid_dir(project_dir) else os.path.join(self.default_images, project_dir)
+            default_dir = os.path.join(self.default_images, project_dir)
+            if self.valid_dir(project_dir):
+                project_dir = project_dir
+            elif self.valid_dir(default_dir):
+                project_dir = default_dir
+            else:
+                self.logger.error(f"Directories '{project_dir}' and '{default_dir}' do not exist! Checking current directory...")
+                project_dir = "."
             
+            ### Scan project directory for dockerfiles
             if os.path.exists(project_dir):
-                self.logger.info(f"processing dockerfiles in: '{project_dir}")
+                self.logger.info(f"processing dockerfiles in: '{project_dir}'")
 
                 total_images = len(p.get("dockerfiles"))
                 for image in p.get("dockerfiles"):
