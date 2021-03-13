@@ -8,6 +8,7 @@
 ## Create Sudo Rule
 
 append to '/etc/sudoers.d/docker':
-%devs   ALL=(ALL)       NOPASSWD: /usr/bin/docker
+    
+    %devs   ALL=(ALL)       NOPASSWD: /usr/bin/docker
 
 make sure <user> is member of devs group
