@@ -13,7 +13,7 @@ info:
 build:
     base: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
     projects:
-         - name: "base-gpu"
+      - name: "base-gpu"
         directory: "base-gpu"
         dockerfiles:
           - file: "Dockerfile.base"

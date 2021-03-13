@@ -47,106 +47,6 @@ from math import floor
 from time import time, sleep
 from urllib.parse import quote, urljoin
 
-### Set constants
-IS_WINDOWS_PLATFORM = (sys.platform == 'win32')
-_SEP = re.compile('/|\\\\') if IS_WINDOWS_PLATFORM else re.compile('/')
-_cache = {}
-_MAXCACHE = 100
-
-### Define functions
-def split_path(p):
-    return [pt for pt in re.split(_SEP, p) if pt and pt != '.']
-
-def normalize_slashes(p):
-    if IS_WINDOWS_PLATFORM:
-        return '/'.join(split_path(p))
-    return p
-
-def fnmatch(name, pat):
-    """Test whether FILENAME matches PATTERN.
-    Patterns are Unix shell style:
-    *       matches everything
-    ?       matches any single character
-    [seq]   matches any character in seq
-    [!seq]  matches any char not in seq
-    An initial period in FILENAME is not special.
-    Both FILENAME and PATTERN are first case-normalized
-    if the operating system requires it.
-    If you don't want this, use fnmatchcase(FILENAME, PATTERN).
-    """
-
-    name = name.lower()
-    pat = pat.lower()
-    return fnmatchcase(name, pat)
-
-def fnmatchcase(name, pat):
-    """Test whether FILENAME matches PATTERN, including case.
-    This is a version of fnmatch() which doesn't case-normalize
-    its arguments.
-    """
-
-    try:
-        re_pat = _cache[pat]
-    except KeyError:
-        res = translate(pat)
-        if len(_cache) >= _MAXCACHE:
-            _cache.clear()
-        _cache[pat] = re_pat = re.compile(res)
-    return re_pat.match(name) is not None
-
-def translate(pat):
-    """Translate a shell PATTERN to a regular expression.
-    There is no way to quote meta-characters.
-    """
-    i, n = 0, len(pat)
-    res = '^'
-    while i < n:
-        c = pat[i]
-        i = i + 1
-        if c == '*':
-            if i < n and pat[i] == '*':
-                # is some flavor of "**"
-                i = i + 1
-                # Treat **/ as ** so eat the "/"
-                if i < n and pat[i] == '/':
-                    i = i + 1
-                if i >= n:
-                    # is "**EOF" - to align with .gitignore just accept all
-                    res = res + '.*'
-                else:
-                    # is "**"
-                    # Note that this allows for any # of /'s (even 0) because
-                    # the .* will eat everything, even /'s
-                    res = res + '(.*/)?'
-            else:
-                # is "*" so map it to anything but "/"
-                res = res + '[^/]*'
-        elif c == '?':
-            # "?" is any char except "/"
-            res = res + '[^/]'
-        elif c == '[':
-            j = i
-            if j < n and pat[j] == '!':
-                j = j + 1
-            if j < n and pat[j] == ']':
-                j = j + 1
-            while j < n and pat[j] != ']':
-                j = j + 1
-            if j >= n:
-                res = res + '\\['
-            else:
-                stuff = pat[i:j].replace('\\', '\\\\')
-                i = j + 1
-                if stuff[0] == '!':
-                    stuff = '^' + stuff[1:]
-                elif stuff[0] == '^':
-                    stuff = '\\' + stuff
-                res = '%s[%s]' % (res, stuff)
-        else:
-            res = res + re.escape(c)
-
-    return res + '$'
-
 ### Define classes
 class BuildError(Exception):
     '''raise this when there's an Exception during the build process'''
@@ -154,8 +54,16 @@ class BuildError(Exception):
 class LoadError(Exception):
     '''raise this when there's an Exception loading config files'''
 
-class Settings(object):
+class Constants(object):
     def __init__(self):
+        self.IS_WINDOWS_PLATFORM = (sys.platform == 'win32')
+        self._SEP = re.compile('/|\\\\') if self.IS_WINDOWS_PLATFORM else re.compile('/')
+        self._cache = {}
+        self._MAXCACHE = 100
+
+class Settings(Constants):
+    def __init__(self):
+        Constants.__init__(self)
         self.arg = self.get_arg()
 
     def get_arg(self):
@@ -163,7 +71,7 @@ class Settings(object):
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('--opts', type=json.loads, help='Set script arguments')
         self.parser.add_argument('--log_level', choices=('debug', 'info', 'warning', 'error', 'critical'), default='info', const='info', nargs='?', required=False, help='Set script log level of verbosity')
-        self.parser.add_argument('--config', type=str, default='default', required=True, help="Location of build YAML file")
+        self.parser.add_argument('config', type=str, default='default', help="Location of build YAML file")
         self.parser.add_argument('--push', action='store_true', default=False, required=False, help="Push images to repositoy")
         self.parser.add_argument('--repository', type=str, default='', required=False, help="Repository to push to")
         self.parser.add_argument('--save', type=str, required=False, help="Location to save image")
@@ -375,7 +283,6 @@ class Logging(Basics):
     def __init__(self):
         Basics.__init__(self)
         self.logger = self.setup_logging()
-        self.work_dir = os.path.dirname(os.path.abspath(__file__))
     
     def setup_logging(self):
         logging.basicConfig(
@@ -624,6 +531,9 @@ class Operations(Logging):
     def __init__(self):
         Logging.__init__(self)
         self.config_path = os.path.normpath(self.arg.config)
+        self.etc_path = "/usr/local/etc/image-builder"
+        self.work_dir = os.path.dirname(self.config_path)
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
         ### Set parent working directory
         self.build_dir =  os.path.join(self.work_dir, "build")
 #        self.logger.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
@@ -632,7 +542,10 @@ class Operations(Logging):
             self.configs = self.load_config()
         except LoadError as err:
             self.logger.error(f"'{err}'")
-            sys.exit()         
+            sys.exit()     
+        except BuildError as b_err:
+            self.logger.error(f"'{b_err}'")
+            sys.exit()     
         self.project_build_dir = os.path.join(self.build_dir, os.path.basename(self.configs.get("info").get("name")))
         # Create build directory
         if self.arg.dryrun:
@@ -647,7 +560,17 @@ class Operations(Logging):
 
     def load_config(self):
         if self.valid_file(self.config_path, logger=True):
-            schema_path = os.path.join(self.work_dir, 'schema.yaml')
+            schema_paths = [
+                os.path.join(self.script_dir, 'schema.yaml'),
+                os.path.join(self.etc_path, 'schema.yaml'),
+            ]
+            if any([self.valid_file(sp) for sp in schema_paths]):
+                for sp in schema_paths:
+                    if self.valid_file(sp):
+                        schema_path = sp
+                        self.logger.debug(f"using schema file found at: '{schema_path}'")
+            else:
+                raise BuildError("Builder Schema Error: schema file not found")
             try:
                 schema = yamale.make_schema(schema_path)
             except Exception as err:
@@ -1011,12 +934,12 @@ class Docker(Operations):
         abs_dockerfile = dockerfile
         if not os.path.isabs(dockerfile):
             abs_dockerfile = os.path.join(path, dockerfile)
-            if constants.IS_WINDOWS_PLATFORM and path.startswith(
-                    constants.WINDOWS_LONGPATH_PREFIX):
+            if self.IS_WINDOWS_PLATFORM and path.startswith(
+                    self.WINDOWS_LONGPATH_PREFIX):
                 abs_dockerfile = '{}{}'.format(
-                    constants.WINDOWS_LONGPATH_PREFIX,
+                    self.WINDOWS_LONGPATH_PREFIX,
                     os.path.normpath(
-                        abs_dockerfile[len(constants.WINDOWS_LONGPATH_PREFIX):]
+                        abs_dockerfile[len(self.WINDOWS_LONGPATH_PREFIX):]
                     )
                 )
         if (os.path.splitdrive(path)[0] != os.path.splitdrive(abs_dockerfile)[0] or
@@ -1075,7 +998,7 @@ class Docker(Operations):
             if i.mtime < 0 or i.mtime > 8**11 - 1:
                 i.mtime = int(i.mtime)
 
-            if IS_WINDOWS_PLATFORM:
+            if self.IS_WINDOWS_PLATFORM:
                 # Windows doesn't keep track of the execute bit, so we make files
                 # and directories executable by default.
                 i.mode = i.mode & 0o755 | 0o111
@@ -1408,6 +1331,100 @@ class Docker(Operations):
                         elif os.path.isfile(p):
                             os.remove(p)
 
+### Define functions
+def split_path(p):
+    return [pt for pt in re.split(constants._SEP, p) if pt and pt != '.']
+
+def normalize_slashes(p):
+    if constants.IS_WINDOWS_PLATFORM:
+        return '/'.join(split_path(p))
+    return p
+
+def fnmatch(name, pat):
+    """Test whether FILENAME matches PATTERN.
+    Patterns are Unix shell style:
+    *       matches everything
+    ?       matches any single character
+    [seq]   matches any character in seq
+    [!seq]  matches any char not in seq
+    An initial period in FILENAME is not special.
+    Both FILENAME and PATTERN are first case-normalized
+    if the operating system requires it.
+    If you don't want this, use fnmatchcase(FILENAME, PATTERN).
+    """
+
+    name = name.lower()
+    pat = pat.lower()
+    return fnmatchcase(name, pat)
+
+def fnmatchcase(name, pat):
+    """Test whether FILENAME matches PATTERN, including case.
+    This is a version of fnmatch() which doesn't case-normalize
+    its arguments.
+    """
+
+    try:
+        re_pat = constants._cache[pat]
+    except KeyError:
+        res = translate(pat)
+        if len(constants._cache) >= constants._MAXCACHE:
+            constants._cache.clear()
+        constants._cache[pat] = re_pat = re.compile(res)
+    return re_pat.match(name) is not None
+
+def translate(pat):
+    """Translate a shell PATTERN to a regular expression.
+    There is no way to quote meta-characters.
+    """
+    i, n = 0, len(pat)
+    res = '^'
+    while i < n:
+        c = pat[i]
+        i = i + 1
+        if c == '*':
+            if i < n and pat[i] == '*':
+                # is some flavor of "**"
+                i = i + 1
+                # Treat **/ as ** so eat the "/"
+                if i < n and pat[i] == '/':
+                    i = i + 1
+                if i >= n:
+                    # is "**EOF" - to align with .gitignore just accept all
+                    res = res + '.*'
+                else:
+                    # is "**"
+                    # Note that this allows for any # of /'s (even 0) because
+                    # the .* will eat everything, even /'s
+                    res = res + '(.*/)?'
+            else:
+                # is "*" so map it to anything but "/"
+                res = res + '[^/]*'
+        elif c == '?':
+            # "?" is any char except "/"
+            res = res + '[^/]'
+        elif c == '[':
+            j = i
+            if j < n and pat[j] == '!':
+                j = j + 1
+            if j < n and pat[j] == ']':
+                j = j + 1
+            while j < n and pat[j] != ']':
+                j = j + 1
+            if j >= n:
+                res = res + '\\['
+            else:
+                stuff = pat[i:j].replace('\\', '\\\\')
+                i = j + 1
+                if stuff[0] == '!':
+                    stuff = '^' + stuff[1:]
+                elif stuff[0] == '^':
+                    stuff = '\\' + stuff
+                res = '%s[%s]' % (res, stuff)
+        else:
+            res = res + re.escape(c)
+
+    return res + '$'
+
 def main():
     ### Start builder
     docker = Docker()
@@ -1424,6 +1441,7 @@ if __name__ == '__main__':
         'yamale>=3.0.4',
         'PyYAML>=5.4.1',
     ])
+    constants = Constants()
 
     import yaml
     import yamale
@@ -1431,5 +1449,6 @@ if __name__ == '__main__':
     from ruyaml import YAML
     from passlib.hash import bcrypt
     from tqdm import tqdm, trange
+
 
     main()
