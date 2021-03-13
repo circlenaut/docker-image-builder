@@ -7,6 +7,8 @@
 
 ## Create Sudo Rule
 
+This script requires elevated permission, run with sudo.
+
 Create or append to: '/etc/sudoers.d/docker'
     
     %devs   ALL=(ALL)       NOPASSWD: /usr/bin/docker

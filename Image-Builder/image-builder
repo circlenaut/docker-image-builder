@@ -526,7 +526,6 @@ class PushStatus(object):
     def set_image(self, name):
         self.image = name
 
-
 class Operations(Logging):
     def __init__(self):
         Logging.__init__(self)
