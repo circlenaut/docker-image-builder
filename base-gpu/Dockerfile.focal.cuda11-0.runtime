@@ -1,13 +1,13 @@
-FROM registry.dev.proneer.co/cuda:11.1-ubuntu20.04
+FROM registry.dev.proneer.co/cuda:11.0-ubuntu20.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base CUDA 11.1 Runtime ###########
+######## Base CUDA 11.0 Runtime ###########
 
 ### Image and project labels
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
-        org.label-schema.docker.dockerfile="/Dockerfile.cuda11-1.runtime" \
-        org.label-schema.name="Base Ubuntu 20.04 Cuda 11.1 Runtime Image" \
+        org.label-schema.docker.dockerfile="/Dockerfile.cuda11-0.runtime" \
+        org.label-schema.name="Base Ubuntu 20.04 Cuda 11.0 Runtime Image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
@@ -17,19 +17,18 @@ ENV \
 
 ### Install CUDA runtime libraries
 ENV \
-    CUDA="11.1" \
-    CUDA_PKG="11-1" \
-    PKG_VERSION="11.1.74" \
+    CUDA="11.0" \
+    CUDA_PKG="11-0" \
     NCCL_VERSION="2.8.4"
     
 RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        cuda-libraries-$CUDA_PKG=$CUDA.1-1 \
-        libnpp-$CUDA_PKG=$CUDA.2.301-1 \
-        cuda-nvtx-$CUDA_PKG=$PKG_VERSION-1 \
-        libcublas-$CUDA_PKG=11.3.0.106-1 \
-        libcusparse-$CUDA_PKG=11.3.0.10-1 \
+        cuda-libraries-$CUDA_PKG=$CUDA.3-1 \
+        libnpp-$CUDA_PKG=11.1.0.245-1 \
+        cuda-nvtx-$CUDA_PKG=11.0.167-1 \
+        libcublas-$CUDA_PKG=11.2.0.252-1 \
+        libcusparse-$CUDA_PKG=11.1.1.245-1 \
         libnccl2=$NCCL_VERSION-1+cuda$CUDA \
     # apt from auto upgrading the cublas package. See https://gitlab.com/nvidia/container-images/cuda/-/issues/88
     && apt-mark hold \
