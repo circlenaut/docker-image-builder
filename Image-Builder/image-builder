@@ -43,6 +43,7 @@ import logging
 import shutil
 import tarfile
 import tempfile
+from pathlib import Path, PurePath
 from math import floor
 from time import time, sleep
 from urllib.parse import quote, urljoin
@@ -137,8 +138,8 @@ class PatternMatcher(object):
 
     def matches(self, filepath):
         matched = False
-        parent_path = os.path.dirname(filepath)
-        parent_path_dirs = split_path(parent_path)
+        parent_path = Path(filepath).parent
+        parent_path_dirs = split_path(parent_path.as_posix())
 
         for pattern in self.patterns:
             negative = pattern.exclusion
@@ -229,7 +230,7 @@ class Basics(Settings):
 
     def is_type_path(self, entry):
         spl = entry.split(os.sep)
-        s = pathlib.PurePath(entry).suffix
+        s = PurePath(entry).suffix
         if len(spl) > 1:
             return True
         elif s:
@@ -330,7 +331,7 @@ class Setup(Logging):
     def install(self, required_pkgs):
         if not self.arg.force:
             self.check_linux()
-        local_bin = os.path.join(os.getenv("HOME"), ".local/bin")
+        local_bin = Path(os.getenv("HOME"), ".local", "bin")
         def is_installed(requirement):
             import pkg_resources
             try:
@@ -343,11 +344,11 @@ class Setup(Logging):
             exists = False
             paths = os.getenv("PATH").split(":")
             for p in paths:
-                if p == local_bin:
+                if p == local_bin.as_posix():
                     exists = True
             return exists
         if not is_local_path_set():
-            os.environ["PATH"] += os.pathsep + local_bin
+            os.environ["PATH"] += os.pathsep + local_bin.as_posix()
         for pkg in required_pkgs:
             installed = is_installed(pkg)
             if installed == False:
@@ -529,15 +530,15 @@ class PushStatus(object):
 class Operations(Logging):
     def __init__(self):
         Logging.__init__(self)
-        self.config_path = os.path.normpath(self.arg.config)
-        self.etc_path = "/usr/local/etc/image-builder"
-        self.default_images = "/opt/docker/Docker-Images"
-        self.work_dir = os.path.dirname(self.config_path) if not os.path.dirname(self.config_path) == "" else "."
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        ### Set parent working directory
-        self.build_dir =  os.path.join(self.work_dir, "build")
-#        self.logger.debug(f"setting ownership of '{build_dir}' to '{user}:{group}'")
-        self.parent_dir = os.path.dirname(self.work_dir)
+        # Set directories
+        self.config_path = Path(self.arg.config)
+        self.etc_path = Path("/usr/local/etc/image-builder")
+        self.default_images = Path("/opt/docker/Docker-Images")
+        self.script_dir = Path(__file__).resolve().parent
+        self.work_dir = self.config_path.parent if not self.config_path.as_posix() == "" else Path(".")
+        self.build_dir =  self.work_dir.joinpath("build")
+        self.parent_dir = self.work_dir
+        # Load config
         try:
             self.configs = self.load_config()
         except LoadError as err:
@@ -545,36 +546,36 @@ class Operations(Logging):
             sys.exit()     
         except BuildError as b_err:
             self.logger.error(f"'{b_err}'")
-            sys.exit()     
-        self.project_build_dir = os.path.join(self.build_dir, os.path.basename(self.configs.get("info").get("name")))
+            sys.exit()
+        self.project_build_dir = self.build_dir.joinpath(self.configs.get("info").get("name"))
         # Create build directory
         if self.arg.dryrun:
-            self.logger.info(f"Dry run: creating build directories: '{self.project_build_dir}'")
+            self.logger.info(f"Dry run: creating build directories: '{self.project_build_dir.as_posix()}'")
         elif not self.arg.dryrun:
-            self.logger.info(f"creating build directory: '{self.project_build_dir}'")
-            self.recursive_make_dir(self.project_build_dir)
+            self.logger.info(f"creating build directory: '{self.project_build_dir.as_posix()}'")
+            self.recursive_make_dir(self.project_build_dir.as_posix())
         # Setup filesystem logging
-        self.log_file = os.path.join(self.project_build_dir, 'build.log')
+        self.log_file = self.project_build_dir.joinpath('build.log')
         if not self.arg.dryrun:
-            self.save_logs(self.log_file)
+            self.save_logs(self.log_file.as_posix())
 
     def load_config(self):
         if self.valid_file(self.config_path, logger=True):
             schema_paths = [
-                os.path.join(self.script_dir, 'schema.yaml'),
-                os.path.join(self.etc_path, 'schema.yaml'),
+                self.script_dir.joinpath('schema.yaml'),
+                self.etc_path.joinpath('schema.yaml'),
             ]
-            if any([self.valid_file(sp) for sp in schema_paths]):
+            if any([self.valid_file(sp.as_posix()) for sp in schema_paths]):
                 for sp in schema_paths:
-                    if self.valid_file(sp):
+                    if self.valid_file(sp.as_posix()):
                         schema_path = sp
-                        self.logger.debug(f"using schema file found at: '{schema_path}'")
+                        self.logger.debug(f"using schema file found at: '{schema_path.as_posix()}'")
             else:
                 raise BuildError("Builder Schema Error: schema file not found")
             try:
-                schema = yamale.make_schema(schema_path)
+                schema = yamale.make_schema(schema_path.as_posix())
             except Exception as err:
-                self.logger.error(f"failed to load: '{schema_path}'")
+                self.logger.error(f"failed to load: '{schema_path.as_posix()}'")
                 raise LoadError(f"{err}") 
             try:
                 data = yamale.make_data(self.config_path)
@@ -1065,23 +1066,23 @@ class Docker(Operations):
                 dockerfiles.append(df.get("file"))
 
             ### Define directory to scan
-            project_dir = os.path.join(self.parent_dir, p.get("directory"))
-            default_dir = os.path.join(self.default_images, project_dir)
-            if self.valid_dir(project_dir):
+            project_dir = self.parent_dir.joinpath(p.get("directory"))
+            default_dir = self.default_images.joinpath(project_dir)
+            if self.valid_dir(project_dir.as_posix()):
                 project_dir = project_dir
-            elif self.valid_dir(default_dir):
+            elif self.valid_dir(default_dir.as_posix()):
                 project_dir = default_dir
             else:
-                self.logger.error(f"Directories '{project_dir}' and '{default_dir}' do not exist! Checking current directory...")
-                project_dir = "."
+                self.logger.error(f"Directories '{project_dir.as_posix()}' and '{default_dir.as_posix()}' do not exist! Checking current directory...")
+                project_dir = Path(".")
             
             ### Scan project directory for dockerfiles
-            if os.path.exists(project_dir):
-                self.logger.info(f"processing dockerfiles in: '{project_dir}'")
+            if os.path.exists(project_dir.as_posix()):
+                self.logger.info(f"processing dockerfiles in: '{project_dir.as_posix()}'")
 
                 total_images = len(p.get("dockerfiles"))
                 for image in p.get("dockerfiles"):
-                    dockerfile_path = os.path.join(project_dir, image.get("file"))
+                    dockerfile_path = project_dir.joinpath(image.get("file"))
                     # Get Dockerfile properties
                     image_repository = main_repository if main_repository else image.get("repository")
                     image_name = image.get("name")
@@ -1091,12 +1092,12 @@ class Docker(Operations):
                     # Set image Docker path
                     image_docker_path = f"{image_repository}/{image_name}:{image_tag}"
 
-                    if os.path.exists(dockerfile_path):
-                        self.logger.info(f"Building image: '{image_tag}' from '{dockerfile_path}'")
+                    if os.path.exists(dockerfile_path.as_posix()):
+                        self.logger.info(f"Building image: '{image_tag}' from '{dockerfile_path.as_posix()}'")
 
                         ### Read dockerfile
                         df_lines = list()
-                        with open(dockerfile_path) as f:
+                        with open(dockerfile_path.as_posix()) as f:
                             lines = f.readlines()
 
                         ### Set from image specified in config
@@ -1194,8 +1195,8 @@ class Docker(Operations):
                         
                         # copy image files
                         for e in copy_elements:
-                            src = os.path.join(project_dir, e)
-                            dst = os.path.join(self.project_build_dir, e)
+                            src = project_dir.joinpath(e)
+                            dst = self.project_build_dir.joinpath(e)
                             if self.arg.dryrun:
                                 self.logger.debug(f"Dry run: copying: '{src}' --> '{dst}'")
                             elif not self.arg.dryrun:
@@ -1203,8 +1204,8 @@ class Docker(Operations):
                             project_files.append(dst)
                         
                         # Track log file and project build directory
-                        project_files.append(self.log_file)
-                        project_files.append(self.project_build_dir)
+                        project_files.append(self.log_file.as_posix())
+                        project_files.append(self.project_build_dir.as_posix())
 
                         image_count+=1
 
@@ -1230,21 +1231,21 @@ class Docker(Operations):
                         dockerfile_encoded = io.BytesIO(dockerfile_mod.encode('utf-8'))
 
                         # Read dockerignore for files to exclude
-                        docker_ignore = os.path.join(project_dir, '.dockerignore')
+                        docker_ignore = project_dir.joinpath('.dockerignore')
                         docker_exclude = None
-                        if os.path.exists(docker_ignore):
-                            with open(docker_ignore, 'r') as f:
+                        if os.path.exists(docker_ignore.as_posix()):
+                            with open(docker_ignore.as_posix(), 'r') as f:
                                 docker_exclude = list(filter(
                                     lambda x: x != '' and x[0] != '#',
                                     [l.strip() for l in f.read().splitlines()]
                                 ))
 
-                        dockerfile_processed = self.process_dockerfile(dockerfile_path, project_dir)
+                        dockerfile_processed = self.process_dockerfile(dockerfile_path.as_posix(), project_dir.as_posix())
                         
                         encoding = None
                         encoding = 'gzip' if self.arg.gzip else encoding
 
-                        dockerfile_obj = self.makebuildcontext(project_dir, dockerfile_encoded, dockerfile_processed, docker_exclude, self.arg.gzip)  
+                        dockerfile_obj = self.makebuildcontext(project_dir.as_posix(), dockerfile_encoded, dockerfile_processed, docker_exclude, self.arg.gzip)  
                         
                         self.run_build = True if self.build_success else False
                         if not self.arg.dryrun and self.build_success:
@@ -1279,7 +1280,7 @@ class Docker(Operations):
                                     self.build_success = False
                                 if not self.run_build and not self.build_success:
                                     self.logger.info(f"failed to build: '{image_docker_path}'")
-                                    self.logger.info(f"dockerfile: '{dockerfile_path}'")
+                                    self.logger.info(f"dockerfile: '{dockerfile_path.as_posix()}'")
                                     sys.exit()
                             else:
                                 self.logger.info(f"succesfully built: '{image_docker_path}'")
@@ -1297,10 +1298,10 @@ class Docker(Operations):
                                     image_docker_path, stream=True, decode=True
                                 )]
                     else:
-                        self.logger.error(f"Dockerfile does not exists: '{dockerfile_path}")
+                        self.logger.error(f"Dockerfile does not exists: '{dockerfile_path.as_posix()}")
                         sys.exit()                
             else:
-                self.logger.error(f"Project dir does not exists: '{project_dir}")
+                self.logger.error(f"Project dir does not exists: '{project_dir.as_posix()}")
                 sys.exit()
 
         project_files.append(self.build_dir)
@@ -1312,21 +1313,21 @@ class Docker(Operations):
             self.logger.debug(dockerfile_final)
 
         ### Write final Dockerfile
-        dockerfile_final_path = os.path.join(self.project_build_dir, "Dockerfile")
+        dockerfile_final_path = self.project_build_dir.joinpath("Dockerfile")
         if self.arg.dryrun:
-            self.logger.info(f"Dry run: Writing final Dockerfile to: '{dockerfile_final_path}")
+            self.logger.info(f"Dry run: Writing final Dockerfile to: '{dockerfile_final_path.as_posix()}")
         if not self.arg.dryrun and self.build_success:
-            self.logger.info(f"Writing final Dockerfile to: '{dockerfile_final_path}")
-            with open(dockerfile_final_path, "w") as f: 
+            self.logger.info(f"Writing final Dockerfile to: '{dockerfile_final_path.as_posix()}")
+            with open(dockerfile_final_path.as_posix(), "w") as f: 
                 f.write(dockerfile_final)
             # Track Dockerfile
-            project_files.append(dockerfile_final_path)
+            project_files.append(dockerfile_final_path.as_posix())
             # Fix Dockerfile permissions
-            self.chown(dockerfile_final_path, user, group)
-            self.chmod(dockerfile_final_path, "664")
+            self.chown(dockerfile_final_path.as_posix(), user, group)
+            self.chmod(dockerfile_final_path.as_posix(), "664")
             # Fix log file permissions
-            self.chown(self.log_file, user, group)
-            self.chmod(self.log_file, "664")
+            self.chown(self.log_file.as_posix(), user, group)
+            self.chmod(self.log_file.as_posix(), "664")
 
             ### Remove residual project files
             if self.arg.rm_build_files:

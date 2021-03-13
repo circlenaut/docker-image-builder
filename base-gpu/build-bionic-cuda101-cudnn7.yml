@@ -1,7 +1,7 @@
 version: "0.1"
 
 info:
-    name: "registry.dev.proneer.co/cuda-bionic-101"
+    name: "proneer/bionic-cuda101"
     tags:
       - "v0.1"
       - "latest"
