@@ -11,4 +11,4 @@ Create or append to: '/etc/sudoers.d/docker'
     
     %devs   ALL=(ALL)       NOPASSWD: /usr/bin/docker
 
-make sure "user" is member of devs group
+make sure "user" is member of the "devs" group
