@@ -536,7 +536,6 @@ class Operations(Logging):
         self.default_images = Path("/opt/docker/Docker-Images")
         self.script_dir = Path(__file__).resolve().parent
         self.work_dir = self.config_path.parent if not self.config_path.as_posix() == "" else Path(".")
-        self.build_dir =  self.work_dir.joinpath("build")
         self.parent_dir = self.work_dir.parent
         # Load config
         try:
@@ -547,7 +546,8 @@ class Operations(Logging):
         except BuildError as b_err:
             self.logger.error(f"'{b_err}'")
             sys.exit()
-        self.project_build_dir = self.build_dir.joinpath(self.configs.get("info").get("name"))
+        self.build_dir = Path(self.configs.get("info").get("build_dir")) if self.configs.get("info").get("build_dir") else self.work_dir.joinpath("build")
+        self.project_build_dir = self.build_dir.joinpath(Path(self.configs.get("info").get("name")))
         # Create build directory
         if self.arg.dryrun:
             self.logger.info(f"Dry run: creating build directories: '{self.project_build_dir.as_posix()}'")

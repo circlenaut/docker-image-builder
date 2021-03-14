@@ -13,8 +13,7 @@ info:
 build:
     base: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
     projects:
-      - name: "base-gpu"
-        directory: "base-gpu"
+      - directory: "base-gpu"
         dockerfiles:
           - file: "Dockerfile.base"
             repository: "registry.dev.proneer.co"
@@ -22,8 +21,7 @@ build:
             tag: "latest"
             push: "false"
             from: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
-      - name: "dev-server"
-        directory: "dev-server"
+      - directory: "dev-server"
         dockerfiles:
           - file: "Dockerfile.dev"
             repository: "registry.dev.proneer.co"
