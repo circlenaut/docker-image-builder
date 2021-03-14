@@ -537,7 +537,7 @@ class Operations(Logging):
         self.script_dir = Path(__file__).resolve().parent
         self.work_dir = self.config_path.parent if not self.config_path.as_posix() == "" else Path(".")
         self.build_dir =  self.work_dir.joinpath("build")
-        self.parent_dir = self.work_dir
+        self.parent_dir = self.work_dir.parent
         # Load config
         try:
             self.configs = self.load_config()

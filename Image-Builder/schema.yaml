@@ -17,7 +17,6 @@ build_map:
     base: str(required=False)
     projects: list(include('project_map', required=True), required=True)
 project_map:
-    name: str(required=True)
     directory: str(required=True)
     dockerfiles: list(include('dockerfile_map', required=True), required=True)
 dockerfile_map:

@@ -13,8 +13,7 @@ info:
 build:
     base: "ubuntu:18.04"
     projects:
-      - name: "base-ubuntu18.04"
-        directory: "base-cpu"
+      - directory: "base-cpu"
         dockerfiles:
           - file: "Dockerfile.bionic.base"
             repository: "registry.dev.proneer.co"
@@ -22,8 +21,7 @@ build:
             tag: "ubuntu18.04"
             push: "false"
             from: "ubuntu:18.04"
-      - name: "cuda10.1-cudnn7-devel-ubuntu18.04"
-        directory: "base-gpu"
+      - directory: "base-gpu"
         dockerfiles:
           - file: "Dockerfile.bionic.cuda10-1"
             repository: "registry.dev.proneer.co"
