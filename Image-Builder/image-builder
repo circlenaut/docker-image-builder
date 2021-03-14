@@ -535,7 +535,7 @@ class Operations(Logging):
         self.etc_path = Path("/usr/local/etc/image-builder")
         self.default_images = Path("/opt/docker/Docker-Images")
         self.script_dir = Path(__file__).resolve().parent
-        self.work_dir = self.config_path.parent if not self.config_path.as_posix() == "" else Path(".")
+        self.work_dir = self.config_path.parent if not self.config_path.as_posix() == "" else Path.cwd()
         self.parent_dir = self.work_dir.parent
         # Load config
         try:
@@ -594,13 +594,13 @@ class Operations(Logging):
                     raise LoadError(f"{perm}")
                 except Exception as err:
                     self.logger.error(f"failed to load: '{self.config_path}'")
-                    raise LoadError(f"{err}") 
+                    raise LoadError(f"{err}")
+                return loaded_config
             else:
                 self.logger.error(f"Invalid config file: '{self.config_path}'")
         else:
             self.logger.debug("No yaml config files available to load")
             sys.exit()
-        return loaded_config
 
     def copy_file(self, source, target, check=True):
         success = False
@@ -1074,7 +1074,7 @@ class Docker(Operations):
                 project_dir = default_dir
             else:
                 self.logger.error(f"Directories '{project_dir.as_posix()}' and '{default_dir.as_posix()}' do not exist! Checking current directory...")
-                project_dir = Path(".")
+                project_dir = Path.cwd()
             
             ### Scan project directory for dockerfiles
             if os.path.exists(project_dir.as_posix()):
