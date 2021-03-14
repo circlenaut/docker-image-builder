@@ -1,7 +1,7 @@
 version: "0.1"
 
 info:
-    name: "registry.dev.proneer.co/openpose:ubuntu20.04"
+    name: "proneer/openpose-focal"
     tags:
       - "v0.1"
       - "latest"
@@ -13,8 +13,7 @@ info:
 build:
     base: "ubuntu:20.04"
     projects:
-      - name: "base-ubuntu20.04"
-        directory: "base-cpu"
+      - directory: "base-cpu"
         dockerfiles:
           - file: "Dockerfile.focal.base"
             repository: "registry.dev.proneer.co"
@@ -22,8 +21,7 @@ build:
             tag: "ubuntu20.04"
             push: "false"
             from: "ubuntu:20.04"
-      - name: "cuda11.1-cudnn8-devel-ubuntu20.04"
-        directory: "base-gpu"
+      - directory: "base-gpu"
         dockerfiles:
           - file: "Dockerfile.focal.cuda11-1"
             repository: "registry.dev.proneer.co"
@@ -49,8 +47,7 @@ build:
             tag: "11.1-cudnn8-devel-ubuntu20.04"
             push: "false"
             from: "registry.dev.proneer.co/cuda:11.1-devel-ubuntu20.04"
-      - name: "openpose-focal"
-        directory: "openpose"
+      - directory: "openpose"
         dockerfiles:
           - file: "Dockerfile.focal.base"
             repository: "registry.dev.proneer.co"

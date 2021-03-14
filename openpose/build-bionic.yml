@@ -1,7 +1,7 @@
 version: "0.1"
 
 info:
-    name: "registry.dev.proneer.co/openpose:ubuntu18.04"
+    name: "proneer/openpose-bionic"
     tags:
       - "v0.1"
       - "latest"
@@ -13,8 +13,7 @@ info:
 build:
     base: "ubuntu:18.04"
     projects:
-      - name: "base-ubuntu18.04"
-        directory: "base-cpu"
+      - directory: "base-cpu"
         dockerfiles:
           - file: "Dockerfile.bionic.base"
             repository: "registry.dev.proneer.co"
@@ -22,8 +21,7 @@ build:
             tag: "ubuntu18.04"
             push: "false"
             from: "ubuntu:18.04"
-      - name: "cuda10.1-cudnn7-devel-ubuntu18.04"
-        directory: "base-gpu"
+      - directory: "base-gpu"
         dockerfiles:
           - file: "Dockerfile.bionic.cuda10-1"
             repository: "registry.dev.proneer.co"
@@ -49,8 +47,7 @@ build:
             tag: "10.1-cudnn7-devel-ubuntu18.04"
             push: "false"
             from: "registry.dev.proneer.co/cuda:10.1-devel-ubuntu18.04"
-      - name: "openpose-bionic"
-        directory: "openpose"
+      - directory: "openpose"
         dockerfiles:
           - file: "Dockerfile.bionic.base"
             repository: "registry.dev.proneer.co"
