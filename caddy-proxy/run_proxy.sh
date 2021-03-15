@@ -1,4 +1,5 @@
 #!/bin/bash
+
 sudo docker-compose down
 sudo bash build.sh
 sudo docker-compose up -d

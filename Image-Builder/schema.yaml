@@ -15,6 +15,8 @@ info_map:
 ---
 build_map:
     base: str(required=False)
+    entrypoint: str(required=False)
+    command: str(required=False)
     projects: list(include('project_map', required=True), required=True)
 project_map:
     directory: str(required=True)
@@ -26,5 +28,4 @@ dockerfile_map:
     tag: str(required=False)
     push: str(required=False)
     from: str(required=False)
-    entrypoint: str(required=False)
     

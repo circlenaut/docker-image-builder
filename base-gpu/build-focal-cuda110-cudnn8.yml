@@ -12,6 +12,8 @@ info:
     repository: "registry.dev.proneer.co"
 build:
     base: "ubuntu:20.04"
+    command: "nvidia-smi"
+    entrypoint: "python3 /docker-entrypoint.py"
     projects:
       - directory: "base-cpu"
         dockerfiles:

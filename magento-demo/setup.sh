@@ -1,3 +1,5 @@
+#!/bin/bash
+
 a2enmod rewrite
 
 #curl -o n98-magerun2.phar http://files.magerun.net/n98-magerun2-latest.phar

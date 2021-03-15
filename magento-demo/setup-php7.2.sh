@@ -1,3 +1,5 @@
+#!/bin/bash
+
 a2enmod rewrite
 mkdir ~/.temp
 curl -o ~/.temp/composer-setup.php https://getcomposer.org/installer

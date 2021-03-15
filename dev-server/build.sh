@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ##sudo docker build -t registry.dev.proneer.co/dev-gpu-k8s:v0.1 -f Dockerfile.dev.k8s .
 ##sudo docker build -t registry.dev.proneer.co/dev-gpu-k8s:latest -f Dockerfile.dev.k8s .
 sudo docker build -t registry.dev.proneer.co/dev-gpu:v0.1 -f Dockerfile.dev .

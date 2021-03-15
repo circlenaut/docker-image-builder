@@ -12,6 +12,7 @@ info:
     repository: "registry.dev.proneer.co"
 build:
     base: "ubuntu:18.04"
+    command: "nvidia-smi"
     projects:
       - directory: "base-cpu"
         dockerfiles:

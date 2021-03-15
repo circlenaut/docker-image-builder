@@ -13,6 +13,7 @@ info:
     #build_dir: "../magento"
 build:
     base: "ubuntu:20.04"
+    entrypoint: "python3 /docker-entrypoint.py"
     projects:
       - directory: "base-cpu"
         dockerfiles:
@@ -60,4 +61,3 @@ build:
             tag: "webdev-ubuntu20.04"
             push: "true"
             from: "registry.dev.proneer.co/magento:tools-ubuntu20.04"
-            entrypoint: "python3 /docker-entrypoint.py"

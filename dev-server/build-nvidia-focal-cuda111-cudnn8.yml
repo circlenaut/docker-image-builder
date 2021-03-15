@@ -12,6 +12,7 @@ info:
     repository: "registry.dev.proneer.co"
 build:
     base: "nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04"
+    entrypoint: "python3 /docker-entrypoint.py"
     projects:
       - directory: "base-gpu"
         dockerfiles:
@@ -35,4 +36,3 @@ build:
             tag: "nvidia-11.1-cudnn8-devel-ubuntu20.04"
             push: "false"
             from: "registry.dev.proneer.co/dev:nvidia-11.1-cudnn8-devel-ubuntu20.04"
-#            entrypoint: "python3 /docker-entrypoint.py"

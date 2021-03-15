@@ -1,3 +1,5 @@
+#!/bin/bash
+
 sudo docker-compose down
 sudo docker volume rm magento_cache_data
 sudo docker volume rm magento_db_data
