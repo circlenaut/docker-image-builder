@@ -1118,9 +1118,11 @@ class Docker(Operations):
 
                         ### Set from, entrypoint and command specified in config
                         build_base = self.configs.get("build").get("base")
-                        build_cmd = self.configs.get("build").get("command")
-                        build_entrypoint = self.configs.get("build").get("entrypoint")
+                        build_cmd = self.configs.get("build").get("command") if self.configs.get("build").get("command") else None
+                        build_entrypoint = self.configs.get("build").get("entrypoint") if self.configs.get("build").get("entrypoint") else None
                         project_from = image.get("from")
+                        dockerfile_entrypoint = None
+                        dockerfile_cmd = None
 
                         ### Modify Dockerfile
                         copy_elements = list()
@@ -1191,7 +1193,7 @@ class Docker(Operations):
                                         elif all([image_count > 0, project_from]):
                                             self.logger.debug(f"Source image: '{project_from}'")
                                             dockerfile_final_lines.append(f"FROM {project_from}")
-                                            df_lines.append(f"FROM {project_from}")                                            
+                                            df_lines.append(f"FROM {project_from}")
                                         else:
                                             df_lines.append(f"{l}")
                                         skip_line = True
@@ -1228,12 +1230,29 @@ class Docker(Operations):
                         project_files.append(self.log_file.as_posix())
                         project_files.append(self.project_build_dir.as_posix())
 
-                        final_entrypoint = build_entrypoint if build_entrypoint else dockerfile_entrypoint
-                        final_command = build_cmd if build_cmd else dockerfile_cmd
+                        # Set image entrypoint
+                        if build_entrypoint:
+                            final_entrypoint = build_entrypoint
+                        elif dockerfile_entrypoint:
+                            final_entrypoint = dockerfile_entrypoint
+                        else:
+                            final_entrypoint = None
                         if final_entrypoint and image_count == (total_images - 1):
                             self.logger.debug(f"Final Entrypoint: '{final_entrypoint}'")
                             dockerfile_final_lines.append(f"ENTRYPOINT {final_entrypoint}")
                             df_lines.append(f"ENTRYPOINT {final_entrypoint}")
+
+                        # Set image command
+                        if build_cmd:
+                            final_cmd = build_cmd
+                        elif dockerfile_cmd:
+                            final_cmd = dockerfile_cmd
+                        else:
+                            final_cmd = None
+                        if final_cmd and image_count == (total_images - 1):
+                            self.logger.debug(f"Final Command: '{final_cmd}'")
+                            dockerfile_final_lines.append(f"CMD {final_cmd}")
+                            df_lines.append(f"CMD {final_cmd}")
 
                         if self.arg.show:
                             print(f"Image: {image_docker_path}")
