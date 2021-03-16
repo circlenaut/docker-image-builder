@@ -55,6 +55,9 @@ class BuildError(Exception):
 class LoadError(Exception):
     '''raise this when there's an Exception loading config files'''
 
+class OperationError(Exception):
+    '''raise this when there's an Exception running operations'''
+
 class Constants(object):
     def __init__(self):
         self.IS_WINDOWS_PLATFORM = (sys.platform == 'win32')
@@ -68,7 +71,6 @@ class Settings(Constants):
         self.arg = self.get_arg()
 
     def get_arg(self):
-        self.parser = argparse.ArgumentParser()
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('--opts', type=json.loads, help='Set script arguments')
         self.parser.add_argument('--log_level', choices=('debug', 'info', 'warning', 'error', 'critical'), default='info', const='info', nargs='?', required=False, help='Set script log level of verbosity')
@@ -547,6 +549,7 @@ class Operations(Logging):
             sys.exit()
         self.build_dir = Path(self.configs.get("info").get("build_dir")) if self.configs.get("info").get("build_dir") else self.work_dir.joinpath("build")
         self.project_build_dir = self.build_dir.joinpath(Path(self.configs.get("info").get("name")))
+        self.version_tags = self.configs.get("info").get("tags")
         # Create build directory
         if self.arg.dryrun:
             self.logger.info(f"Dry run: creating build directories: '{self.project_build_dir.as_posix()}'")
@@ -800,7 +803,7 @@ class Operations(Logging):
                         self.logger.warning(f"directory exists! skipping copy: '{dst}'")                                    
                 elif not os.path.exists(dst):
                     self.logger.debug(f"copying: '{src}' --> '{dst}'")
-                    cp_dir(src, dst, user, group, mask)      
+                    cp_dir(src, dst, user, group, mask)
             elif os.path.isfile(src):
                 if os.path.exists(dst):
                     if overwrite:
@@ -811,9 +814,9 @@ class Operations(Logging):
                         self.logger.warning(f"file exists! skipping copy: '{dst}'")
                 elif not os.path.exists(dst):
                     self.logger.debug(f"copying: '{src}' --> '{dst}'")
-                    cp_file(src, dst, user, group, mask)                      
+                    cp_file(src, dst, user, group, mask)                  
             else:
-                self.logger.error(f"unknown path type: '{src}'")
+                raise OperationError(f"unknown path type: '{src}'")
 
         if os.path.exists(src):
             # Get permissions
@@ -831,8 +834,7 @@ class Operations(Logging):
                 self.recursive_make_dir(dst_parent_dir)
                 copy_check(src, dst, overwrite, user, group, mask)
         else:
-            self.logger.error(f"source path does not exist! '{src}', exiting")
-            sys.exit()
+            raise OperationError(f"source path does not exist! '{src}'")
 
     def yaml_valid(self, schema, data):
         try:
@@ -1218,12 +1220,23 @@ class Docker(Operations):
                         
                         # copy image files
                         for e in copy_elements:
+                            def is_from(field):
+                                if field == "--from":
+                                    self.logger.debug(f"skipping field: '{field}'")
+                                    return True
+                                else:
+                                    return False
                             src = project_dir.joinpath(e)
                             dst = self.project_build_dir.joinpath(e)
                             if self.arg.dryrun:
                                 self.logger.debug(f"Dry run: copying: '{src}' --> '{dst}'")
                             elif not self.arg.dryrun:
-                                self.copy_path(src, dst, self.arg.overwrite)
+                                if any([is_from(s) for s in e.split("=")]):
+                                    continue
+                                try:
+                                    self.copy_path(src, dst, self.arg.overwrite)
+                                except OperationError as operr:
+                                    self.logger.error(operr)
                             project_files.append(dst)
                         
                         # Track log file and project build directory
@@ -1318,17 +1331,23 @@ class Docker(Operations):
                                 self.logger.info(f"succesfully built: '{image_docker_path}'")
                                 self.run_build = False
                                 self.build_success = True
-                            #if save:
-                            #    f = open('/tmp/busybox-latest.tar', 'wb')
-                            #    for chunk in image:
-                            #        f.write(chunk)
-                            #    f.close()
-                            if image_push:
-                                self.logger.info(f"Pushing: '{image_docker_path}'")
-                                pushstat.set_image(image_docker_path)
-                                [pushstat.store(line) for line in self.cli.push(
-                                    image_docker_path, stream=True, decode=True
-                                )]
+                            # Set version tags for final image
+                            if image_count == (total_images - 1):
+                                for t in self.version_tags:
+                                    version_image_docker_path = f"{image_repository}/{image_name}:{image_tag}-{t}"
+                                    self.logger.info(f"tagging image: {version_image_docker_path}")
+                                    self.cli.tag(f"{image_docker_path}", f"{image_repository}/{image_name}", f"{image_tag}-{t}", force=True)
+                                    #if save:
+                                    #    f = open('/tmp/busybox-latest.tar', 'wb')
+                                    #    for chunk in image:
+                                    #        f.write(chunk)
+                                    #    f.close()
+                                    if image_push:
+                                        self.logger.info(f"Pushing: '{version_image_docker_path}'")
+                                        pushstat.set_image(version_image_docker_path)
+                                        [pushstat.store(line) for line in self.cli.push(
+                                            version_image_docker_path, stream=True, decode=True
+                                        )]
 
                             image_count+=1
                     else:

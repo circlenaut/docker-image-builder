@@ -1,13 +1,13 @@
 FROM registry.dev.proneer.co/base:ubuntu20.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base CUDA 11.1 ###########
+######## Base CUDA 11.0 Update 3 ###########
 
 ### Image and project labels
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
-        org.label-schema.docker.dockerfile="/Dockerfile.cuda11-1" \
-        org.label-schema.name="Base Ubuntu 20.04 CUDA 11.1 Image" \
+        org.label-schema.docker.dockerfile="/Dockerfile.cuda11-0-3" \
+        org.label-schema.name="Base Ubuntu 20.04 CUDA 11.0 Update 3 Image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
@@ -23,9 +23,9 @@ RUN \
     && echo "deb https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64 /" > /etc/apt/sources.list.d/nvidia-ml.list
 
 ENV \
-    CUDA="11.1" \
-    CUDA_PKG="11-1" \
-    CUDA_PKG_VERSION="11-1=11.1.74-1"    
+    CUDA="11.0" \
+    CUDA_PKG="11-0" \
+    CUDA_PKG_VERSION="11-0=11.0.221-1"    
 
 RUN \
     apt-get update \
@@ -52,6 +52,6 @@ ENV \
 ENV \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-    NVIDIA_REQUIRE_CUDA="cuda>=11.1 brand=tesla,driver>=418,driver<419 brand=tesla,driver>=440,driver<441 driver>=450,driver<451"
+    NVIDIA_REQUIRE_CUDA="cuda>=11.0 brand=tesla,driver>=418,driver<419 brand=tesla,driver>=440,driver<441 driver>=450,driver<451"
 
 WORKDIR /root

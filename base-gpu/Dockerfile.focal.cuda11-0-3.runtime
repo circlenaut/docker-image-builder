@@ -1,13 +1,13 @@
-FROM registry.dev.proneer.co/cuda:11.0-ubuntu20.04
+FROM registry.dev.proneer.co/cuda:11.0.3-ubuntu20.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base CUDA 11.0 Runtime ###########
+######## Base CUDA 11.0 Update 3 Runtime ###########
 
 ### Image and project labels
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
-        org.label-schema.docker.dockerfile="/Dockerfile.cuda11-0.runtime" \
-        org.label-schema.name="Base Ubuntu 20.04 Cuda 11.0 Runtime Image" \
+        org.label-schema.docker.dockerfile="/Dockerfile.cuda11-0-3.runtime" \
+        org.label-schema.name="Base Ubuntu 20.04 Cuda 11.0 Update 3 Runtime Image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
