@@ -37,3 +37,7 @@ sudo docker build -f .docker/Dockerfile-CPU -t flashlight .
 
 ## Logging inside Docker Containers
 To ensure logs are displayed, using the `--logtostderr=1` and `--minloglevel=0` flags is best-practice.
+
+## Refrences
+Docker images based off:
+-   https://github.com/facebookresearch/flashlight/blob/master/.docker/

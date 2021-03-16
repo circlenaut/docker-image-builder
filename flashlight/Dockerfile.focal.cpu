@@ -16,11 +16,7 @@
 # python3          latest       (apt)
 # ==================================================================
 
-#############################################################################
-#                             APT IMAGE + CMAKE                             #
-#############################################################################
-
-FROM ubuntu:20.04 as cpu_base_builder
+FROM ubuntu:20.04
 
 ENV APT_INSTALL="apt-get install -y --no-install-recommends"
 
@@ -57,11 +53,6 @@ RUN apt-get update && \
     apt-get -y autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-#############################################################################
-#                                DEPS IMAGES                                #
-#############################################################################
-
-FROM cpu_base_builder as cpu_arrayfire
 # ==================================================================
 # arrayfire with CPU backend https://github.com/arrayfire/arrayfire/wiki/
 # ------------------------------------------------------------------
@@ -78,7 +69,6 @@ RUN cd /tmp && git clone --branch v3.7.3 --depth 1 --recursive --shallow-submodu
              -DAF_BUILD_DOCS=OFF && \
     make install -j$(nproc)
 
-FROM cpu_base_builder as cpu_onednn
 # ==================================================================
 # oneDNN https://github.com/oneapi-src/oneDNN
 # ------------------------------------------------------------------
@@ -89,7 +79,6 @@ RUN cd /tmp && git clone --branch v2.0 --depth 1 https://github.com/oneapi-src/o
              -DDNNL_BUILD_EXAMPLES=OFF && \
     make install -j$(nproc)
 
-FROM cpu_base_builder as cpu_gloo
 # ==================================================================
 # Gloo https://github.com/facebookincubator/gloo.git
 # ------------------------------------------------------------------
@@ -100,7 +89,6 @@ RUN cd /tmp && git clone https://github.com/facebookincubator/gloo.git && \
              -DUSE_MPI=ON && \
     make install -j$(nproc)
 
-FROM cpu_base_builder as cpu_kenlm
 # ==================================================================
 # KenLM https://github.com/kpu/kenlm
 # ------------------------------------------------------------------
@@ -111,12 +99,6 @@ RUN cd /tmp && git clone https://github.com/kpu/kenlm.git && \
              -DCMAKE_INSTALL_PREFIX=/opt/kenlm \
              -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
     make install -j$(nproc)
-
-#############################################################################
-#                             FINAL IMAGE                                   #
-#############################################################################
-
-FROM cpu_base_builder as cpu_final
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
@@ -154,12 +136,6 @@ RUN cd /tmp && wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL
     apt-get -y autoremove && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
-
-COPY --from=cpu_arrayfire  /opt/arrayfire  /opt/arrayfire
-COPY --from=cpu_onednn     /opt/onednn     /opt/onednn
-COPY --from=cpu_gloo       /opt/gloo       /opt/gloo
-COPY --from=cpu_kenlm      /opt/kenlm      /opt/kenlm
-
 ENV MKLROOT="/opt/intel/mkl"
 ENV KENLM_ROOT=/opt/kenlm
 
@@ -169,8 +145,6 @@ ENV KENLM_ROOT=/opt/kenlm
 # flashlight       master     (git, CPU backend)
 # ==================================================================
 
-FROM flml/flashlight:cpu-base-consolidation-latest
-
 # just in case for visibility
 ENV MKLROOT="/opt/intel/mkl"
 
@@ -178,14 +152,22 @@ ENV MKLROOT="/opt/intel/mkl"
 # flashlight with CPU backend
 # ------------------------------------------------------------------
 # Setup and build flashlight
-RUN mkdir /root/flashlight
+ENV RESOURCES_PATH="/resources"
+RUN mkdir $RESOURCES_PATH && chmod a+rwx $RESOURCES_PATH
 
-COPY . /root/flashlight
+RUN \
+    FLASHLIGHT_VERSION="master" \
+    && echo "**** building and installing flashlight $FLASHLIGHT_VERSION ****" \
+    && git clone --depth 1 --branch $FLASHLIGHT_VERSION https://github.com/facebookresearch/flashlight.git $RESOURCES_PATH/flashlight
 
-RUN cd /root/flashlight && mkdir -p build && \
-    cd build && cmake .. -DCMAKE_BUILD_TYPE=Release \
-                         -DCMAKE_INSTALL_PREFIX=/opt/flashlight \
-                         -DFL_BACKEND=CPU \
-                         -DGloo_DIR=/opt/gloo/share/cmake \
-                         -DDNNL_DIR=/opt/onednn/lib/cmake/dnnl && \
-    make install -j$(nproc)
+### Build Flashlight
+WORKDIR $RESOURCES_PATH/flashlight
+RUN \
+    mkdir -p build \
+    && cd build && cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/flashlight \
+        -DFL_BACKEND=CPU \
+        -DGloo_DIR=/opt/gloo/share/cmake \
+        -DDNNL_DIR=/opt/onednn/lib/cmake/dnnl \
+    && make install -j$(nproc)
