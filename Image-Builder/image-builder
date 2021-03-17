@@ -963,12 +963,14 @@ class Docker(Operations):
 
         stream = json.loads(line.decode("utf-8").rstrip())
         if stream.get("errorDetail"):
-            raise BuildError("Builder: stream error - {err}".format(err=stream.get("errorDetail").get("message")))
-        if stream.get("aux"):
+            raise BuildError("Builder: {err}".format(err=stream.get("errorDetail").get("message")))
+        elif stream.get("aux"):
             if stream.get("aux").get("ID"):
                 self.logger.info("Builder: {a}".format(a=stream.get("aux").get("ID")))
             else:
-                self.logger.error("Builder: Aux - {a}".format(a=stream.get("aux")))
+                self.logger.error("Builder: {a}".format(a=stream.get("aux")))
+        elif stream.get("status"):
+            self.logger.info("Builder: {a}".format(a=stream.get("status")))
         elif stream.get("stream"):
             if stream.get("stream").isspace():
                 return
@@ -1278,10 +1280,9 @@ class Docker(Operations):
                                         self.pull_order = (total_images - 1) - idx
                                         self.pulled_image = version_image_docker_path
                                         self.logger.info(f"Repo image found: '{version_image_docker_path}'")
-
-                    if not self.pulled_image:
-                        # Set pull order to process all images
-                        self.pull_order = image_count - 1          
+                        if not self.pulled_image:
+                            # Set pull order to process all images
+                            self.pull_order = image_count - 1          
 
                     if not self.arg.dryrun:
                         # Skip parent images of pulled image
