@@ -1227,8 +1227,10 @@ class Docker(Operations):
                             image_push = True if self.arg.push or img.get("push_version") else False
                             if self.arg.push:
                                 push_versions[img.get("path")] = [push_version] + self.version_tags
-                            else:
-                                push_versions[img.get("path")] = [push_version] if image_push else []
+                            elif push_version != "latest":
+                                push_versions[img.get("path")] = [push_version, "latest"] if image_push else []
+                            elif push_version == "latest":
+                                push_versions[img.get("path")] = ["latest"] if image_push else []
                             pull_version = img.get("pull_version") if img.get("pull_version") is not None else "latest"
                             image_pull = True if self.arg.pull or img.get("pull_version") else False
                             pull_versions[img.get("path")] = self.version_tags + [pull_version, ""]

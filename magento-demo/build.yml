@@ -21,7 +21,6 @@ build:
             repository: "registry.dev.proneer.co"
             name: "base"
             tag: "ubuntu20.04"
-            push: "false"
             from: "ubuntu:20.04"
       - directory: "dev-server"
         dockerfiles:
@@ -29,7 +28,6 @@ build:
             repository: "registry.dev.proneer.co"
             name: "dev"
             tag: "ubuntu20.04"
-            push: "false"
             from: "registry.dev.proneer.co/base:ubuntu20.04"
       - directory: "lamp"
         dockerfiles:
@@ -37,7 +35,6 @@ build:
             repository: "registry.dev.proneer.co"
             name: "lamp"
             tag: "ubuntu20.04"
-            push: "false"
             from: "registry.dev.proneer.co/dev:ubuntu20.04"
       - directory: "magento-demo"
         dockerfiles:
@@ -45,13 +42,11 @@ build:
             repository: "registry.dev.proneer.co"
             name: "magento"
             tag: "base-ubuntu20.04"
-            push: "false"
             from: "registry.dev.proneer.co/lamp:ubuntu20.04"
           - file: "Dockerfile.tools"
             repository: "registry.dev.proneer.co"
             name: "magento"
             tag: "tools-ubuntu20.04"
-            push: "false"
             from: "registry.dev.proneer.co/magento:base-ubuntu20.04"
       - directory: "dev-server"
         dockerfiles:
@@ -59,5 +54,5 @@ build:
             repository: "registry.dev.proneer.co"
             name: "magento"
             tag: "webdev-ubuntu20.04"
-            push: "true"
+            push_version: "v0.1"
             from: "registry.dev.proneer.co/magento:tools-ubuntu20.04"
