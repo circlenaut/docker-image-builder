@@ -54,5 +54,5 @@ build:
             repository: "registry.dev.proneer.co"
             name: "flashlight"
             tag: "ubuntu20.04"
-            push: "false"
+            push: "true"
             from: "registry.dev.proneer.co/cuda:11.2.1-cudnn8-devel-ubuntu20.04"

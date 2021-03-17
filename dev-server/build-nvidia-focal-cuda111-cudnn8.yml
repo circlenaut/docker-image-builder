@@ -34,5 +34,5 @@ build:
             repository: "registry.dev.proneer.co"
             name: "webdev"
             tag: "nvidia-11.1-cudnn8-devel-ubuntu20.04"
-            push: "false"
+            push: "true"
             from: "registry.dev.proneer.co/dev:nvidia-11.1-cudnn8-devel-ubuntu20.04"

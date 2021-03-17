@@ -46,6 +46,6 @@ build:
             repository: "registry.dev.proneer.co"
             name: "cuda"
             tag: "10.2-cudnn7-devel-ubuntu18.04"
-            push: "false"
+            push: "true"
             from: "registry.dev.proneer.co/cuda:10.2-devel-ubuntu18.04"
       

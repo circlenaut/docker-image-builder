@@ -60,5 +60,5 @@ build:
             repository: "registry.dev.proneer.co"
             name: "openpose"
             tag: "dev-ubuntu18.04"
-            push: "false"
+            push: "true"
             from: "registry.dev.proneer.co/openpose:base-ubuntu18.04"

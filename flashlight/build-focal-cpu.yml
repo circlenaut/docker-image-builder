@@ -28,5 +28,5 @@ build:
             repository: "registry.dev.proneer.co"
             name: "flashlight"
             tag: "ubuntu20.04"
-            push: "false"
+            push: "true"
             from: "registry.dev.proneer.co/base:ubuntu20.04"

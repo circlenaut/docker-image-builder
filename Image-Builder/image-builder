@@ -43,6 +43,7 @@ import logging
 import shutil
 import tarfile
 import tempfile
+import itertools
 from pathlib import Path, PurePath
 from math import floor
 from time import time, sleep
@@ -411,6 +412,7 @@ class PushStatus(object):
         transfer_progress = dict()
         transfer_totals = dict()
         for idn, progressDetail in self.progress_tracker.items():
+            #print(progressDetail)
             latest = len(progressDetail) - 1
             self.identities.append(idn)
             if transfer_progress.get(idn) == None:
@@ -419,7 +421,9 @@ class PushStatus(object):
             if len(progressDetail) > 1:
                 progress_status = list(progressDetail[latest-1].keys())[0]
                 status_types[progress_status] = None
+                #print(status_types.keys())
                 if progressDetail[latest] != {}:
+                    #print(progressDetail[latest])
 #                    if progressDetail[latest].get("Preparing") != None:
 #                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
 #                    elif progressDetail[latest].get("Waiting") != None:
@@ -430,6 +434,13 @@ class PushStatus(object):
                         transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
                         if progressDetail[latest].get(progress_status) != None:
                             transfer_totals[idn] = {idn: progressDetail[latest].get(progress_status).get("total")}
+                    elif progressDetail[latest].get("Downloading") != None:
+                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
+                        #print(transfer_progress[idn])
+                        if progressDetail[latest].get(progress_status) != None:
+                            #print("true")
+                            transfer_totals[idn] = {idn: progressDetail[latest].get(progress_status).get("total")}
+                            #print(transfer_totals[idn])
 #                    elif progressDetail[latest].get("Pushed") != None:
 #                        transfer_progress[idn] = {'status': progress_status, 'detail': progressDetail[latest].get(progress_status)}
 #                    else:
@@ -461,6 +472,11 @@ class PushStatus(object):
             pushing = True
         else:
             pushing = False
+
+        if "Downloading" in list(status_types.keys()):
+            downloading = True
+        else:
+            downloading = False
             
         if pushing:
             for idnt in self.identities:
@@ -493,6 +509,67 @@ class PushStatus(object):
 #                       self.pbar[idnt].set_description(f"{idnt}: {status}")
 #                       self.pbar[idnt].update(epoch_diff)
                 if status == "Pushing":
+                    if not transfer_progress.get(idnt).get("detail") == None:
+                        if not transfer_progress.get(idnt).get("detail").get("total") == None:
+                            #total = convert_bytes(transfer_progress.get(idnt).get("detail").get("total"))
+                            #transfer = convert_bytes(transfer_progress.get(idnt).get("detail").get("current"))
+                            total = transfer_progress.get(idnt).get("detail").get("total")
+                            transfer = transfer_progress.get(idnt).get("detail").get("current")
+                        else:
+                            total = 0
+                            transfer = 0
+                    else:
+                        total = 0
+                        transfer = 0
+                    if not self.transfer_tracker.get(idnt):
+                        self.transfer_tracker[idnt] = [0]
+                    else:
+                        self.transfer_tracker[idnt].append(transfer)
+                        transfer_position = len(self.transfer_tracker[idnt]) - 1
+                        transfer_latest = self.transfer_tracker[idnt][transfer_position]
+                        transfer_previous = self.transfer_tracker[idnt][transfer_position - 1]
+                        #transfer_diff = convert_bytes(transfer_latest - transfer_previous)
+                        transfer_diff = transfer_latest - transfer_previous
+                    if not self.pbar.get(idnt):
+    #                    self.logger.info(transfer_progress.get(idnt).get("detail"))
+                        self.pbar[idnt] = trange(total, unit=" bytes", bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} bytes [{elapsed}<{remaining}, {rate_fmt}]')
+                    else:
+                        if transfer >= total:
+                            self.pbar[idnt].close()
+                        elif transfer < total:
+                            self.pbar[idnt].set_description(f"{idnt}: {status}")
+                            self.pbar[idnt].update(transfer_diff)
+        if downloading:
+            for idnt in self.identities:
+                status = transfer_progress.get(idnt).get("status")
+                detail = transfer_progress.get(idnt).get("detail")
+                epoch = int(time())
+                max_time = 3600
+                transfer_diff = int()
+#                if status in ["Preparing", "Waiting", "Layer already exists", "Pushed"]:
+#                    if not self.time_tracker.get(idnt):
+#                        self.time_tracker[idnt] = [epoch]
+#                    else:
+#                        self.time_tracker[idnt].append(epoch)
+#                        epoch_position = len(self.time_tracker[idnt]) - 1
+#                        epoch_latest = self.time_tracker[idnt][epoch_position]
+#                        epoch_previous = self.time_tracker[idnt][epoch_position - 1]
+#                        epoch_diff = epoch_latest - epoch_previous
+#                    if not self.pbar.get(idnt):
+#                        if status == "Preparing":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')
+#                        elif status == "Waiting":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')
+#                        elif status == "Layer already exists":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')     
+#                        elif status == "Pushed":
+#                            self.pbar[idnt] = trange(max_time, bar_format='{desc}')               
+#                        else:
+#                            self.pbar[idnt] = trange(1)
+#                    else:
+#                       self.pbar[idnt].set_description(f"{idnt}: {status}")
+#                       self.pbar[idnt].update(epoch_diff)
+                if status == "Downloading":
                     if not transfer_progress.get(idnt).get("detail") == None:
                         if not transfer_progress.get(idnt).get("detail").get("total") == None:
                             #total = convert_bytes(transfer_progress.get(idnt).get("detail").get("total"))
@@ -853,6 +930,8 @@ class Docker(Operations):
         self.errors = docker.errors
         self.color_logs()
         self.build_success = True
+        self.pull_order = None
+        self.pulled_image = None
 
     def lines_to_text(self, lines, justify=None):
         count = 0
@@ -869,8 +948,7 @@ class Docker(Operations):
         fulltext = str().join(formated_lines)
         return fulltext
 
-    def process_stream(self, line):
-        ln = json.loads(line.decode("utf-8").rstrip()).get("stream")
+    def process_build_stream(self, line):
         def rm_imgs():
             try:
                 inter_image = self.cli.inspect_container(self.intermediate_container).get("Image")
@@ -879,9 +957,14 @@ class Docker(Operations):
                 self.cli.remove_image(inter_image, force=True)
             except self.errors.APIError as err:
                 raise BuildError(f"Builder: remove error - {err}")
-        
-        if ln != None and not ln.isspace():
-            ln = ln.rstrip()
+
+        stream = json.loads(line.decode("utf-8").rstrip())
+        if stream.get("errorDetail"):
+            raise BuildError("Builder: stream error - {err}".format(err=stream.get("errorDetail").get("message")))
+        elif stream.get("stream"):
+            if stream.get("stream").isspace():
+                return
+            ln = stream.get("stream").rstrip()
             items = ln.split()
             msg = [i for i in items[1:]]
             error_prompts = ["fatal:", "ERROR:", "error:"]
@@ -929,6 +1012,8 @@ class Docker(Operations):
                     self.logger.debug(ln)
             else:
                 self.logger.debug(ln)
+        else:
+            self.logger.error(stream)
 
     def exclude_paths(self, root, patterns, dockerfile=None):
         """
@@ -1010,7 +1095,6 @@ class Docker(Operations):
                 # This happens when we encounter a socket file. We can safely
                 # ignore it and proceed.
                 continue
-
             # Workaround https://bugs.python.org/issue32713
             if i.mtime < 0 or i.mtime > 8**11 - 1:
                 i.mtime = int(i.mtime)
@@ -1043,8 +1127,7 @@ class Docker(Operations):
         t.addfile(dfinfo, fileobj)
         
         t.close()
-        f.seek(0)
-        
+        f.seek(0)      
         return f
 
     def build(self):
@@ -1070,10 +1153,26 @@ class Docker(Operations):
 
         ### Process Dockerfiles
         dockerfile_final_lines = list()
+        final_image_docker_path = str()
         project_files = list()
         image_count = 0
         total_images = sum([len(p.get("dockerfiles")) for p in projects])
 
+        ### Generate a sorted and indexed list of images to check against the repository
+        all_images_list = list(itertools.chain.from_iterable([(p.get("dockerfiles")) for p in projects]))
+        all_images_dict = dict()
+        for idx, a_img_props in enumerate(all_images_list):
+            docker_path = "{r}/{n}:{t}".format(r=a_img_props.get("repository"), n=a_img_props.get("name"), t=a_img_props.get("tag"))
+            reverse_idx = (total_images - 1) - idx
+            all_images_dict[reverse_idx] = {
+                'path': docker_path,
+                'repo': a_img_props.get("repository"),
+                'name': a_img_props.get("name"),
+                'tag': a_img_props.get("tag"),
+            }
+        pull_images = dict(sorted(all_images_dict.items()))
+
+        ### Iterate through projects
         for p in projects:
             ### Store a list of Dockerfiles to process
             dockerfiles = list()
@@ -1095,8 +1194,56 @@ class Docker(Operations):
             if os.path.exists(project_dir.as_posix()):
                 self.logger.info(f"processing dockerfiles in: '{project_dir.as_posix()}'")
 
+                ### Iterate through images
                 for image in p.get("dockerfiles"):
+                    self.logger.debug(f"image count: {image_count}")
+                    ### Pull images from repository if exists
+                    if not self.pull_order:
+                        for idx, img in pull_images.items():
+                            for tg in self.version_tags:
+                                version_image_docker_path = "{p}-{t}".format(p=img.get("path"), t=tg)
+                                self.logger.debug(f"pulling image: '{version_image_docker_path}'")
+                                try:
+                                    [pushstat.store(line) for line in self.cli.pull(
+                                        "{r}/{n}".format(r=img.get("repo"), n=img.get("name")),
+                                        "{ts}-{t}".format(ts=img.get("tag"), t=tg),
+                                        stream=True, 
+                                        decode=True
+                                    )]
+                                    #    l = json.dumps(line, indent=4)
+                                    #    #print(l)
+                                    #    l_status = line.get("status")
+                                    #    l_id = line.get("id")
+                                    #    if l_id:
+                                    #        self.logger.info(f"{l_status}: '{l_id}'")
+                                    #    else:
+                                    #        self.logger.info(f"{l_status}")
+                                    self.run_build = False
+                                    self.pull_order = (total_images - 1) - idx
+                                    self.pulled_image = version_image_docker_path
+                                    self.logger.info(f"Repo image found: '{version_image_docker_path}'")
+                                except self.errors.NotFound as notfound:
+                                    self.logger.debug(f"Repo image not found: '{version_image_docker_path}'")
+                                    self.run_build = True
+                                    self.build_success = True
+                                except self.errors.APIError as a_err:
+                                    self.logger.error(f"docker api error: {a_err}")
+                                    self.run_build = False
+                                    self.build_success = False                                                                      
+                                except Exception as err:
+                                    self.logger.error(f"unknown error: {err}")
+                                    self.run_build = False
+                                    self.build_success = False
+                    
+                    # Skip parent images of pulled image
+                    if not self.pull_order or image_count <= self.pull_order:
+                        image_count+=1
+                        continue
+                    self.logger.debug(f"pull order: '{self.pull_order}' image: '{self.pulled_image}'")
+
+                    # set dockerfile_path
                     dockerfile_path = project_dir.joinpath(image.get("file"))
+                    
                     # Get Dockerfile properties
                     image_repository = main_repository if main_repository else image.get("repository")
                     image_name = image.get("name")
@@ -1110,6 +1257,7 @@ class Docker(Operations):
                     if image_count == (total_images - 1): 
                         final_image_docker_path = image_docker_path
 
+                    ### Run build logic
                     if os.path.exists(dockerfile_path.as_posix()):
                         self.logger.info(f"Building image: '{image_tag}' from '{dockerfile_path.as_posix()}'")
 
@@ -1119,10 +1267,10 @@ class Docker(Operations):
                             lines = f.readlines()
 
                         ### Set from, entrypoint and command specified in config
-                        build_base = self.configs.get("build").get("base")
+                        build_base = self.pulled_image if self.pulled_image else self.configs.get("build").get("base")
                         build_cmd = self.configs.get("build").get("command") if self.configs.get("build").get("command") else None
                         build_entrypoint = self.configs.get("build").get("entrypoint") if self.configs.get("build").get("entrypoint") else None
-                        project_from = image.get("from")
+                        project_from = self.pulled_image if self.pulled_image else image.get("from")
                         dockerfile_entrypoint = None
                         dockerfile_cmd = None
 
@@ -1267,6 +1415,7 @@ class Docker(Operations):
                             dockerfile_final_lines.append(f"CMD {final_cmd}")
                             df_lines.append(f"CMD {final_cmd}")
 
+                        # Display dockerfile contents to console
                         if self.arg.show:
                             print(f"Image: {image_docker_path}")
                             print(f"Dockerfile: {dockerfile_path}")
@@ -1285,18 +1434,18 @@ class Docker(Operations):
                                     [l.strip() for l in f.read().splitlines()]
                                 ))
 
+                        # Create manifest
                         dockerfile_processed = self.process_dockerfile(dockerfile_path.as_posix(), project_dir.as_posix())
-                        
                         encoding = None
                         encoding = 'gzip' if self.arg.gzip else encoding
+                        dockerfile_obj = self.makebuildcontext(project_dir.as_posix(), dockerfile_encoded, dockerfile_processed, docker_exclude, self.arg.gzip)
 
-                        dockerfile_obj = self.makebuildcontext(project_dir.as_posix(), dockerfile_encoded, dockerfile_processed, docker_exclude, self.arg.gzip)  
-                        
+                        # Build images
                         self.run_build = True if self.build_success else False
                         if not self.arg.dryrun and self.build_success:
-                            if self.run_build:
+                            if self.run_build and (image_count - 1) >= self.pull_order:
                                 try:
-                                    [self.process_stream(line) for line in self.cli.build(
+                                    [self.process_build_stream(line) for line in self.cli.build(
                                         fileobj=dockerfile_obj, 
                                         rm=True, 
                                         tag=image_docker_path, 
@@ -1319,8 +1468,8 @@ class Docker(Operations):
                                     self.logger.error(f"error: {t_err}")
                                     self.run_build = False
                                     self.build_success = False                 
-                                except:
-                                    self.logger.error("unknown error")
+                                except Exception as err:
+                                    self.logger.error(f"unknown error: {err}")
                                     self.run_build = False
                                     self.build_success = False
                                 if not self.run_build and not self.build_success:
@@ -1336,7 +1485,12 @@ class Docker(Operations):
                                 for t in self.version_tags:
                                     version_image_docker_path = f"{image_repository}/{image_name}:{image_tag}-{t}"
                                     self.logger.info(f"tagging image: {version_image_docker_path}")
-                                    self.cli.tag(f"{image_docker_path}", f"{image_repository}/{image_name}", f"{image_tag}-{t}", force=True)
+                                    try:
+                                        self.cli.tag(f"{image_docker_path}", f"{image_repository}/{image_name}", f"{image_tag}-{t}", force=True)
+                                    except self.errors.ImageNotFound as i_err:
+                                        self.logger.error(f"not found: {image_docker_path}")
+                                    except Exception as err:
+                                        self.logger.error(f"unknown error: {err}")
                                     #if save:
                                     #    f = open('/tmp/busybox-latest.tar', 'wb')
                                     #    for chunk in image:
@@ -1350,6 +1504,8 @@ class Docker(Operations):
                                         )]
 
                             image_count+=1
+                        else:
+                            self.logger.error(f"build failed: {image_docker_path}")
                     else:
                         self.logger.error(f"Dockerfile does not exists: '{dockerfile_path.as_posix()}")
                         sys.exit()                
@@ -1357,8 +1513,10 @@ class Docker(Operations):
                 self.logger.error(f"Project dir does not exists: '{project_dir.as_posix()}")
                 sys.exit()
 
+        # Append to project file tracker for later (optional)removal
         project_files.append(self.build_dir)
 
+        # Set final dockerfile path
         dockerfile_final_path = self.project_build_dir.joinpath("Dockerfile")
         
         ### Display final Dockerfile

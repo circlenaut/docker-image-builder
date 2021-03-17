@@ -60,5 +60,5 @@ build:
             repository: "registry.dev.proneer.co"
             name: "webdev"
             tag: "11.0.3-cudnn8-devel-ubuntu20.04"
-            push: "false"
+            push: "true"
             from: "registry.dev.proneer.co/dev:11.0.3-cudnn8-devel-ubuntu20.04"
