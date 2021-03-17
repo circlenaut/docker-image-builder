@@ -26,6 +26,7 @@ dockerfile_map:
     repository: str(required=False)
     name: str(required=True)
     tag: str(required=False)
-    push: str(required=False)
+    push_version: str(required=False)
+    pull_version: str(required=False)
     from: str(required=False)
     
