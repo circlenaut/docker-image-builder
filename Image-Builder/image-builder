@@ -935,6 +935,9 @@ class Docker(Operations):
         self.build_success = True
         self.pull_order = None
         self.pulled_image = None
+        self.stream_tracker = dict()
+
+        self.status_test = dict()
 
     def lines_to_text(self, lines, justify=None):
         count = 0
@@ -952,6 +955,8 @@ class Docker(Operations):
         return fulltext
 
     def process_build_stream(self, line):
+        width, height = os.get_terminal_size()
+  
         def rm_imgs():
             try:
                 inter_image = self.cli.inspect_container(self.intermediate_container).get("Image")
@@ -961,7 +966,9 @@ class Docker(Operations):
             except self.errors.APIError as err:
                 raise BuildError(f"Builder: remove error - {err}")
 
-        stream = json.loads(line.decode("utf-8").rstrip())
+        #stream = json.loads(line.decode("utf-8").rstrip()) # if decode=False
+        stream = line
+        #print(line)
         if stream.get("errorDetail"):
             raise BuildError("Builder: {err}".format(err=stream.get("errorDetail").get("message")))
         elif stream.get("aux"):
@@ -970,7 +977,67 @@ class Docker(Operations):
             else:
                 self.logger.error("Builder: {a}".format(a=stream.get("aux")))
         elif stream.get("status"):
-            self.logger.info("Builder: {a}".format(a=stream.get("status")))
+            print("----------")
+            idn = stream.get("id")
+            idn_len = len(idn) if idn is not None else 0
+            status = stream.get("status")
+            self.status_test[status] = None
+            print(f"items: {len(self.stream_tracker)}")
+            print(list(self.status_test.keys()))
+            print(f"status: {status}")
+       #     print(f"removing: {idn}")
+            if not idn in self.stream_tracker and idn_len == 12:
+                print(f"adding: {idn}")
+                #self.logger.info("Builder: {a}: {p}".format(a=stream.get("status"), s=stream.get("progressDetail"), p=stream.get("progress"), i=stream.get("id")))
+                self.stream_tracker[stream.get("id")] = {
+                    'status': stream.get("status"),
+                    'progress': stream.get("progress"),
+                    'detail': stream.get("progressDetail"),
+                }
+            print(f"items: {len(self.stream_tracker)}")
+            print(f"items: {list((self.stream_tracker).keys())}")
+            print("================")
+            if len(self.stream_tracker) > 0:
+                remove = dict()
+                for idn, stats in self.stream_tracker.items():
+                    print("{i}: {s}".format(i=idn, s=stats.get("status")))
+                    if stats.get("status") == "Pull complete":
+                        remove[idn] = None
+                for idn, empty in remove.items():
+                    print(f"removing: {idn}")
+                    self.stream_tracker.pop(idn, None)
+        
+                #if self.stream_tracker.get(stat) == None:
+                
+                #self.stream_tracker.pop(idn, None)
+                #print(f"removing: {idn}")
+            print(f"items: {len(self.stream_tracker)}")
+            print("================")
+                        #print(len(self.stream_tracker), end="\r")
+
+#            if len(self.stream_tracker.keys()) == 10:
+#                print(
+#                    "{i}: {s}".format(
+#                        i=list(self.stream_tracker.keys())[8],
+#                        s=self.stream_tracker[list(self.stream_tracker.keys())[8]].get("progress")),
+#                    "{i}: {s}".format(
+#                        i=list(self.stream_tracker.keys())[9],
+#                        s=self.stream_tracker[list(self.stream_tracker.keys())[9]].get("progress")),
+#                    end="\r"
+#                )
+#            print("{i}:".format(
+#                i=list(self.stream_tracker.keys()), 
+#                s=self.stream_tracker.get(list(self.stream_tracker.keys())[0]).get("progress")), 
+#                end="\r",
+#            ))
+#            for idn, stats in self.stream_tracker.items():
+#                print("{i}: {s}".format(i=idn, s=stats.get("progress")), end="\r")
+            #print(stream.get("id"))
+            #print("Builder: {i}: {s} {p}".format(
+            #    i=self.stream_tracker.get(stream.get("id")).keys(),
+            #    s=self.stream_tracker.get(stream.get("id")).get("status"),
+            #    p=self.stream_tracker.get(stream.get("id")).get("progress"),
+            #))
         elif stream.get("stream"):
             if stream.get("stream").isspace():
                 return
@@ -1491,7 +1558,8 @@ class Docker(Operations):
                                         [self.process_build_stream(line) for line in self.cli.build(
                                             fileobj=dockerfile_obj, 
                                             rm=True, 
-                                            tag=image_docker_path, 
+                                            tag=image_docker_path,
+                                            decode=True,
                                             custom_context=True,
                                         )]
                                         self.run_build = True
