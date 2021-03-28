@@ -15,7 +15,7 @@ select opt in "${options[@]}"; do
         "Ubuntu 18.04 with Cuda 10.1 and cuDNN7")
             echo "Running image: $opt"
             if [ "$1" == "-i" ]; then
-	            sudo docker container run --name bionic_cuda_10-1_cudnn7 -it --rm --gpus all registry.dev.proneer.co/cuda:10.1-cudnn7-devel-ubuntu18.04
+                sudo docker container run --name bionic_cuda_10-1_cudnn7 -it --rm --gpus all registry.dev.proneer.co/cuda:10.1-cudnn7-devel-ubuntu18.04
             else
                 sudo docker container run --name bionic_cuda_10-1_cudnn7 --rm --gpus all registry.dev.proneer.co/cuda:10.1-cudnn7-devel-ubuntu18.04
             fi
