@@ -929,15 +929,16 @@ class Docker(Operations):
         import docker
         Operations.__init__(self)
         self.cli = docker.APIClient(base_url='unix://var/run/docker.sock')
+        self.term = dict()
         self.logger.debug(self.cli.version())
         self.errors = docker.errors
         self.color_logs()
         self.build_success = True
         self.pull_order = None
         self.pulled_image = None
-        self.stream_tracker = dict()
-
+        self.console_output = dict()
         self.status_test = dict()
+        self.out_stream = str()
 
     def lines_to_text(self, lines, justify=None):
         count = 0
@@ -954,143 +955,7 @@ class Docker(Operations):
         fulltext = str().join(formated_lines)
         return fulltext
 
-    def process_build_stream(self, line):
-        width, height = os.get_terminal_size()
-  
-        def rm_imgs():
-            try:
-                inter_image = self.cli.inspect_container(self.intermediate_container).get("Image")
-                self.logger.warning(f"removing image: {inter_image}")
-                self.cli.remove_container(self.intermediate_container, force=True)
-                self.cli.remove_image(inter_image, force=True)
-            except self.errors.APIError as err:
-                raise BuildError(f"Builder: remove error - {err}")
 
-        #stream = json.loads(line.decode("utf-8").rstrip()) # if decode=False
-        stream = line
-        #print(line)
-        if stream.get("errorDetail"):
-            raise BuildError("Builder: {err}".format(err=stream.get("errorDetail").get("message")))
-        elif stream.get("aux"):
-            if stream.get("aux").get("ID"):
-                self.logger.info("Builder: {a}".format(a=stream.get("aux").get("ID")))
-            else:
-                self.logger.error("Builder: {a}".format(a=stream.get("aux")))
-        elif stream.get("status"):
-            print("----------")
-            idn = stream.get("id")
-            idn_len = len(idn) if idn is not None else 0
-            status = stream.get("status")
-            self.status_test[status] = None
-            print(f"items: {len(self.stream_tracker)}")
-            print(list(self.status_test.keys()))
-            print(f"status: {status}")
-       #     print(f"removing: {idn}")
-            if not idn in self.stream_tracker and idn_len == 12:
-                print(f"adding: {idn}")
-                #self.logger.info("Builder: {a}: {p}".format(a=stream.get("status"), s=stream.get("progressDetail"), p=stream.get("progress"), i=stream.get("id")))
-                self.stream_tracker[stream.get("id")] = {
-                    'status': stream.get("status"),
-                    'progress': stream.get("progress"),
-                    'detail': stream.get("progressDetail"),
-                }
-            print(f"items: {len(self.stream_tracker)}")
-            print(f"items: {list((self.stream_tracker).keys())}")
-            print("================")
-            if len(self.stream_tracker) > 0:
-                remove = dict()
-                for idn, stats in self.stream_tracker.items():
-                    print("{i}: {s}".format(i=idn, s=stats.get("status")))
-                    if stats.get("status") == "Pull complete":
-                        remove[idn] = None
-                for idn, empty in remove.items():
-                    print(f"removing: {idn}")
-                    self.stream_tracker.pop(idn, None)
-        
-                #if self.stream_tracker.get(stat) == None:
-                
-                #self.stream_tracker.pop(idn, None)
-                #print(f"removing: {idn}")
-            print(f"items: {len(self.stream_tracker)}")
-            print("================")
-                        #print(len(self.stream_tracker), end="\r")
-
-#            if len(self.stream_tracker.keys()) == 10:
-#                print(
-#                    "{i}: {s}".format(
-#                        i=list(self.stream_tracker.keys())[8],
-#                        s=self.stream_tracker[list(self.stream_tracker.keys())[8]].get("progress")),
-#                    "{i}: {s}".format(
-#                        i=list(self.stream_tracker.keys())[9],
-#                        s=self.stream_tracker[list(self.stream_tracker.keys())[9]].get("progress")),
-#                    end="\r"
-#                )
-#            print("{i}:".format(
-#                i=list(self.stream_tracker.keys()), 
-#                s=self.stream_tracker.get(list(self.stream_tracker.keys())[0]).get("progress")), 
-#                end="\r",
-#            ))
-#            for idn, stats in self.stream_tracker.items():
-#                print("{i}: {s}".format(i=idn, s=stats.get("progress")), end="\r")
-            #print(stream.get("id"))
-            #print("Builder: {i}: {s} {p}".format(
-            #    i=self.stream_tracker.get(stream.get("id")).keys(),
-            #    s=self.stream_tracker.get(stream.get("id")).get("status"),
-            #    p=self.stream_tracker.get(stream.get("id")).get("progress"),
-            #))
-        elif stream.get("stream"):
-            if stream.get("stream").isspace():
-                return
-            ln = stream.get("stream").rstrip()
-            items = ln.split()
-            msg = [i for i in items[1:]]
-            error_prompts = ["fatal:", "ERROR:", "error:"]
-            if "E:" in items[0]:
-                if self.arg.rm_inter_imgs:
-                    rm_imgs()
-                raise BuildError("Builder Apt Error: {m}".format(m=" ".join(msg)))
-            elif "/bin/sh:" in items[0] and len(msg) > 0:
-                if self.arg.rm_inter_imgs:
-                    rm_imgs()
-                raise BuildError("Builder Shell Error: {m}".format(m=" ".join(msg)))
-            elif "CMake" in items[0] and "Error:" in items[1]:
-                if self.arg.rm_inter_imgs:
-                    rm_imgs()
-                raise BuildError("Builder Cmake Error: {m}".format(m=" ".join(msg[1:])))
-            if any([self.in_list(e, items[0]) for e in error_prompts]):
-                if self.arg.rm_inter_imgs:
-                    rm_imgs()
-                raise BuildError("Builder Error: {m}".format(m=" ".join(msg)))
-            #elif "\x1b[91m" in items[0]: # Look for catchall errors "red text"
-            #    if self.arg.rm_inter_imgs:
-            #        rm_imgs()
-            #    raise BuildError("Builder: error - {m}".format(m=" ".join(msg)))
-            elif items[0] == "Step": # Look for build steps
-                self.logger.info("Builder: Step {m}".format(m=" ".join(msg)))
-            elif items[0] == "--->": # Look for build progression info
-                if items[1] == "Running" and items[2] == "in":
-                    self.intermediate_container = items[3]
-                self.logger.info("Builder: {m}".format(m=" ".join(msg)))
-            elif items[0] == "Successfully": # Look for success info
-                self.logger.info("Builder: Successfully {m}".format(m=" ".join(msg)))
-                self.build_success = True
-            elif items[0] == "Fetched": # Look for fetch info
-                self.logger.info("Builder: Fetched {m}".format(m=" ".join(msg)))
-            elif items[0] == "Reading": # Look for reading info
-                self.logger.info("Builder: Reading {m}".format(m=" ".join(msg)))
-            elif items[0] == "Building": # Look for reading info
-                self.logger.info("Builder: Building {m}".format(m=" ".join(msg)))         
-            elif len(items[0].split(":")) == 2: # Look for download progression info
-                get = items[0].split(":")[0]
-                get_idx = items[0].split(":")[1]
-                if get == "Get":
-                    self.logger.info("Builder: Get({i}) {m}".format(i=get_idx, m=" ".join(msg)))
-                else:
-                    self.logger.debug(ln)
-            else:
-                self.logger.debug(ln)
-        else:
-            self.logger.error(stream)
 
     def exclude_paths(self, root, patterns, dockerfile=None):
         """
@@ -1207,6 +1072,99 @@ class Docker(Operations):
         f.seek(0)   
         return f
 
+    def process_build_stream(self, line):
+        def rm_imgs():
+            try:
+                inter_image = self.cli.inspect_container(self.intermediate_container).get("Image")
+                self.logger.warning(f"removing image: {inter_image}")
+                self.cli.remove_container(self.intermediate_container, force=True)
+                self.cli.remove_image(inter_image, force=True)
+            except self.errors.APIError as err:
+                raise BuildError(f"Builder: remove error - {err}")
+
+        stream = line
+        if stream.get("errorDetail"):
+            raise BuildError("Builder: {err}".format(err=stream.get("errorDetail").get("message")))
+        elif stream.get("aux"):
+            if stream.get("aux").get("ID"):
+                self.logger.info("Builder: {a}".format(a=stream.get("aux").get("ID")))
+            else:
+                self.logger.error("Builder: {a}".format(a=stream.get("aux")))
+        elif stream.get("status"):
+            idn = stream.get("id")
+            idn_len = len(idn) if idn is not None else 0
+            status = stream.get("status")
+            self.status_test[status] = None
+            #print(list(self.status_test.keys()))
+            progress = stream.get("progress")
+            detail = stream.get("progressDetail")
+            if idn_len == 12:
+                self.console_output[idn] = {
+                    'status': status,
+                    'progress': progress,
+                }
+            if len(self.console_output) > 0:
+                #remove = dict()
+                #for idn, stats in self.console_output.items():
+                #    if stats.get("status") == "Pull complete":
+                #        remove[idn] = None
+                #for idn, empty in remove.items():
+                #    self.console_output.pop(idn, None)
+                return self.console_output
+        elif stream.get("stream"):
+            if stream.get("stream").isspace():
+                return
+            ln = stream.get("stream").rstrip()
+            items = ln.split()
+            msg = [i for i in items[1:]]
+            error_prompts = ["fatal:", "ERROR:", "error:"]
+            if "E:" in items[0]:
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Apt Error: {m}".format(m=" ".join(msg)))
+            elif "/bin/sh:" in items[0] and len(msg) > 0:
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Shell Error: {m}".format(m=" ".join(msg)))
+            elif "CMake" in items[0] and "Error:" in items[1]:
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Cmake Error: {m}".format(m=" ".join(msg[1:])))
+            if any([self.in_list(e, items[0]) for e in error_prompts]):
+                if self.arg.rm_inter_imgs:
+                    rm_imgs()
+                raise BuildError("Builder Error: {m}".format(m=" ".join(msg)))
+            #elif "\x1b[91m" in items[0]: # Look for catchall errors "red text"
+            #    if self.arg.rm_inter_imgs:
+            #        rm_imgs()
+            #    raise BuildError("Builder: error - {m}".format(m=" ".join(msg)))
+            elif items[0] == "Step": # Look for build steps
+                self.logger.info("Builder: Step {m}".format(m=" ".join(msg)))
+            elif items[0] == "--->": # Look for build progression info
+                if items[1] == "Running" and items[2] == "in":
+                    self.intermediate_container = items[3]
+                self.logger.info("Builder: {m}".format(m=" ".join(msg)))
+            elif items[0] == "Successfully": # Look for success info
+                self.logger.info("Builder: Successfully {m}".format(m=" ".join(msg)))
+                self.build_success = True
+            elif items[0] == "Fetched": # Look for fetch info
+                self.logger.info("Builder: Fetched {m}".format(m=" ".join(msg)))
+            elif items[0] == "Reading": # Look for reading info
+                self.logger.info("Builder: Reading {m}".format(m=" ".join(msg)))
+            elif items[0] == "Building": # Look for reading info
+                self.logger.info("Builder: Building {m}".format(m=" ".join(msg)))         
+            elif len(items[0].split(":")) == 2: # Look for download progression info
+                get = items[0].split(":")[0]
+                get_idx = items[0].split(":")[1]
+                if get == "Get":
+                    self.logger.info("Builder: Get({i}) {m}".format(i=get_idx, m=" ".join(msg)))
+                else:
+                    self.logger.debug(ln)
+            else:
+                self.logger.debug(ln)
+        else:
+            self.logger.error(stream)
+
     def build(self):
         pushstat = PushStatus()
         
@@ -1315,14 +1273,6 @@ class Docker(Operations):
                                                 stream=True, 
                                                 decode=True
                                             )]
-                                            #    l = json.dumps(line, indent=4)
-                                            #    #print(l)
-                                            #    l_status = line.get("status")
-                                            #    l_id = line.get("id")
-                                            #    if l_id:
-                                            #        self.logger.info(f"{l_status}: '{l_id}'")
-                                            #    else:
-                                            #        self.logger.info(f"{l_status}")
                                             self.run_build = False
                                             self.pull_order = (total_images - 1) - idx
                                             self.pulled_image = version_image_docker_path
@@ -1554,35 +1504,45 @@ class Docker(Operations):
                             self.logger.info(f"building: '{image_docker_path}'")
                             if self.run_build and image_count >= self.pull_order:
                                 if not self.arg.dryrun:
-                                    try:
-                                        [self.process_build_stream(line) for line in self.cli.build(
-                                            fileobj=dockerfile_obj, 
-                                            rm=True, 
-                                            tag=image_docker_path,
-                                            decode=True,
-                                            custom_context=True,
-                                        )]
-                                        self.run_build = True
-                                    except self.errors.APIError as a_err:
-                                        self.logger.error(f"Docker API error: {a_err}")
-                                        self.run_build = False
-                                        self.build_success = False
-                                    except self.errors.BuildError as b_err:
-                                        self.logger.error(f"Docker Build error: {b_err}")
-                                        self.run_build = False
-                                        self.build_success = False
-                                    except BuildError as b_err:
-                                        self.logger.error(f"{b_err}")
-                                        self.run_build = False
-                                        self.build_success = False
-                                    except TypeError as t_err:
-                                        self.logger.error(f"error: {t_err}")
-                                        self.run_build = False
-                                        self.build_success = False                 
-                                    except Exception as err:
-                                        self.logger.error(f"unknown error: {err}")
-                                        self.run_build = False
-                                        self.build_success = False
+                                    with Live(self.out_stream, screen=False, auto_refresh=False, transient=True) as live:
+                                        try:
+                                            for line in self.cli.build(
+                                                fileobj=dockerfile_obj, 
+                                                rm=True, 
+                                                tag=image_docker_path,
+                                                decode=True,
+                                                custom_context=True,
+                                            ):
+                                                self.out_stream = self.process_build_stream(line)
+                                                if self.out_stream:
+                                                    table = Table(show_header=False, show_edge=False, box=box.SIMPLE)
+                                                    table.add_column("ID", width=12)
+                                                    table.add_column("Status", width=20)
+                                                    table.add_column("Progress")
+                                                    for idn, attr in self.out_stream.items():
+                                                        table.add_row(idn, attr.get("status"), attr.get("progress"))
+                                                    live.update(table, refresh=True)
+                                            self.run_build = True
+                                        except self.errors.APIError as a_err:
+                                            self.logger.error(f"Docker API error: {a_err}")
+                                            self.run_build = False
+                                            self.build_success = False
+                                        except self.errors.BuildError as b_err:
+                                            self.logger.error(f"Docker Build error: {b_err}")
+                                            self.run_build = False
+                                            self.build_success = False
+                                        except BuildError as b_err:
+                                            self.logger.error(f"{b_err}")
+                                            self.run_build = False
+                                            self.build_success = False
+                                        except TypeError as t_err:
+                                            self.logger.error(f"error: {t_err}")
+                                            self.run_build = False
+                                            self.build_success = False                 
+                                        except Exception as err:
+                                            self.logger.error(f"unknown error: {err}")
+                                            self.run_build = False
+                                            self.build_success = False
                                 elif self.arg.dryrun:
                                     self.run_build = True
                                 if not self.run_build and not self.build_success:
@@ -1774,10 +1734,10 @@ if __name__ == '__main__':
         'coloredlogs>=15.0', 
         'ruyaml>=0.20.0'
         'bcrypt>=3.2.0',
-        'passlib>=1.7.4',
-        'tqdm>=4.59.0',
         'yamale>=3.0.4',
+        'passlib>=1.7.4',
         'PyYAML>=5.4.1',
+        'rich>=10.0.0',
     ])
     constants = Constants()
 
@@ -1786,6 +1746,8 @@ if __name__ == '__main__':
     import coloredlogs
     from ruyaml import YAML
     from passlib.hash import bcrypt
-    from tqdm import tqdm, trange
+    from rich import box
+    from rich.live import Live
+    from rich.table import Table
 
     main()
