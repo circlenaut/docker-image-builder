@@ -19,7 +19,7 @@ sudo image-builder --overwrite --log_level debug ./flashlight/build-focal-cuda.y
 sudo image-builder --overwrite --log_level debug ./magento-demo/build.yml --pull
 
 # Process Openpose
-sudo image-builder --overwrite --log_level debug ./openpose/openpose/build-bionic.yml --pull
-sudo image-builder --overwrite --log_level debug ./openpose/openpose/build-bionic-dev.yml --pull
-sudo image-builder --overwrite --log_level debug ./openpose/openpose/build-focal.yml --pull
-sudo image-builder --overwrite --log_level debug ./openpose/openpose/build-focal-dev.yml --pull
+sudo image-builder --overwrite --log_level debug ./openpose/build-bionic.yml --pull
+sudo image-builder --overwrite --log_level debug ./openpose/build-bionic-dev.yml --pull
+sudo image-builder --overwrite --log_level debug ./openpose/build-focal.yml --pull
+sudo image-builder --overwrite --log_level debug ./openpose/build-focal-dev.yml --pull
