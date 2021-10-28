@@ -36,7 +36,7 @@ RUN mkdir $BUILD_PATH && chmod a+rwx $BUILD_PATH \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-utils \
     software-properties-common \
-    python3.8 \
+    python.8 \
     python3-pip \
     supervisor \
     # Fix permissions

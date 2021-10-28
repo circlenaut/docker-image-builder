@@ -1,13 +1,13 @@
 FROM ubuntu:20.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base Ubuntu 20.04 Image ###########
+######## Ubuntu 20.04 Base ###########
 
 ### Image and project labels
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
         org.label-schema.docker.dockerfile="/Dockerfile.focal.base" \
-        org.label-schema.name="Base Ubuntu 20.04 Image" \
+        org.label-schema.name="Base Ubuntu 20.04 Base Image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
@@ -24,17 +24,23 @@ RUN \
     chmod a+rwx /usr/bin/clean-layer.sh && \
     chmod a+rwx /usr/bin/fix-permissions.sh
 
+### Copy apt resources
+COPY sources-focal.list /etc/apt/sources.list
+COPY apt.conf /etc/apt/apt.conf.d/proneer
+
+### Update image
+RUN apt-get update && apt-get upgrade -y 
+
 ### Install runtime utilities
 RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         apt-utils \
         apt-transport-https \
-        software-properties-common \
+        cmake \
         dialog \
         gcc \
-        cmake \
-        python3.8 \
+        software-properties-common \
     # Cleanup
     && clean-layer.sh \
     && rm -rf /var/lib/apt/lists/* \
@@ -45,22 +51,32 @@ RUN \
 RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        sudo \
+        ca-certificates \
         cron \
+        dpkg-sig \
         gnupg-agent \
         gnupg2 \
-        ca-certificates \
-        openssl \
         iproute2 \
-        dpkg-sig \
-        uuid-dev \
-        time \
+		libffi7 \
         locales \
+        openssl \
+        sudo \
+        time \
+		tzdata \
+        uuid-dev \
+	# Set Ubuntu apt
+	&& apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6A755776 \
     # Cleanup
     && clean-layer.sh \
     && rm -rf /var/lib/apt/lists/* \
     # Fix permissions
     && fix-permissions.sh $HOME
+
+### Set timezone to UTC
+ENV TZ="Etc/UTC"
+RUN \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+	&& dpkg-reconfigure locales tzdata
 
 ### Set up locales
 RUN locale-gen en_US.UTF-8
@@ -68,8 +84,21 @@ ENV \
     LANG=C.UTF-8 \
     LANGUAGE=C.UTF-8 \
     LC_ALL=C.UTF-8
-
 RUN /usr/sbin/update-locale
+
+ENV LANG="en_US.UTF-8" \
+	LC_CTYPE="en_US.UTF-8" \
+	LC_NUMERIC="en_US.UTF-8" \
+	LC_TIME="en_US.UTF-8" \
+	LC_COLLATE="en_US.UTF-8" \
+	LC_MONETARY="en_US.UTF-8" \
+	LC_MESSAGES="en_US.UTF-8" \
+	LC_PAPER="en_US.UTF-8" \
+	LC_NAME="en_US.UTF-8" \
+	LC_ADDRESS="en_US.UTF-8" \
+	LC_TELEPHONE="en_US.UTF-8" \
+	LC_MEASUREMENT="en_US.UTF-8" \
+	LC_IDENTIFICATION="en_US.UTF-8"
 
 ### Install basic utilities
 RUN \
@@ -89,4 +118,6 @@ RUN \
     # Fix permissions
     && fix-permissions.sh $HOME
 
+### Fix permissions and set working directory
+RUN chmod a+x /usr/local/sbin/* && rm -fr /var/log/* /tmp/*
 WORKDIR /root

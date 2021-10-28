@@ -21,7 +21,7 @@ RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-numpy \
-        python-numpy \
+        python3-numpy \
     # Cleanup
     && clean-layer.sh \
     && rm -rf /var/lib/apt/lists/*
@@ -51,7 +51,7 @@ RUN \
     cmake \
         -D CMAKE_BUILD_TYPE=RELEASE \
         -D CMAKE_INSTALL_PREFIX=/usr/local \
-        -D PYTHON_DEFAULT_EXECUTABLE=$(which python3) \
+        -D PYTHON_DEFAULT_EXECUTABLE=$(which python) \
         -D INSTALL_C_EXAMPLES=ON \
         -D INSTALL_PYTHON_EXAMPLES=ON \
         -D WITH_TBB=ON \
@@ -73,8 +73,8 @@ RUN \
         -D WITH_QT=OFF \
         -D WITH_OPENGL=ON \
         -D ENABLE_CXX11=ON \
-        #-D PYTHON3_NUMPY_INCLUDE_DIRS=/usr/lib/python3/dist-packages/numpy \
-        #-D OPENCV_PYTHON3_INSTALL_PATH=/usr/local/lib/python3.6/dist-packages \
+        #-D PYTHON3_NUMPY_INCLUDE_DIRS=/usr/lib/python/dist-packages/numpy \
+        #-D OPENCV_PYTHON3_INSTALL_PATH=/usr/local/lib/python.6/dist-packages \
         -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules \
         -D BUILD_EXAMPLES=ON \
         .. \

@@ -92,4 +92,4 @@ EXPOSE 443
 
 #USER $UNAME
 #WORKDIR /home/$UNAME
-CMD ["python3", "/docker-entrypoint.py"]
+CMD ["python", "/docker-entrypoint.py"]

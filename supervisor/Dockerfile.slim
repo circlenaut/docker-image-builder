@@ -1,0 +1,55 @@
+FROM registry.dev.proneer.co/slim:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Slim Supervisor ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.slim" \
+        org.label-schema.name="Supervisor slim image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive \
+    SCRIPTS_PATH="/scripts"
+
+### Install syslog
+RUN \
+    apt-get update \
+    # Install rsyslog for syslog logging
+    && apt-get install -y --no-install-recommends rsyslog
+
+### Install Supervisor
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        supervisor \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Fix logging
+RUN sed -i '/imklog/s/^/#/' /etc/rsyslog.conf
+
+
+### Copy some configuration files
+# copy scripts
+COPY ./scripts/__init__.py $SCRIPTS_PATH
+COPY ./scripts/configure_app.py $SCRIPTS_PATH
+COPY ./scripts/docker-entrypoint.py /
+COPY ./scripts/functions_.py $SCRIPTS_PATH
+COPY ./scripts/run_supervisor.py $SCRIPTS_PATH
+# copy supervisor configs
+COPY ./configs/conf.d /etc/supervisor/conf.d/
+COPY ./configs/supervisord.conf /etc/supervisor/supervisord.conf
+# copy yaml validator schema
+COPY ./scripts/schema.yaml $SCRIPTS_PATH
+
+ENTRYPOINT ["python", "/docker-entrypoint.py"]
+
+WORKDIR /root

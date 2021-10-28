@@ -1,0 +1,38 @@
+system: include('environment', required=False)
+users: list(include('id_map', required=True), required=True)
+---
+environment:
+    log_verbosity: str(required=False)
+    api_user: str(required=False)
+    api_group: str(required=False)
+    api_user_password: str(required=False)
+    apps_path: str(required=False)
+    data_path: str(required=False)
+    app_bind_addr: str(required=False)
+    app_base_url: str(required=False)
+    app_root_dir: str(required=False)
+    app_user: str(required=False)
+    app_password: str(required=False)
+
+---
+id_map: include('user_map', required=True)
+user_map:
+    name: str(required=True)
+    group: str(required=False)
+    uid: str(required=True)
+    gid: str(required=False)
+    password: str(required=False)
+    directories: list(include('dir_map', required=False), required=False)
+    app: include('app_map', required=False)
+dir_map:
+    name: str(required=False)
+    path: str(required=False)
+    mode: str(required=False)
+app_map:
+    bind_addr: str(required=False)
+    base_url: str(required=False)
+    root_dir: str(required=False)
+    user: str(required=False)
+    password: str(required=False)
+
+

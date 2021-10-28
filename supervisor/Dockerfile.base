@@ -1,0 +1,61 @@
+FROM registry.dev.proneer.co/python:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Supervisor ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.base" \
+        org.label-schema.name="Supervisor base image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive \
+    SCRIPTS_PATH="/scripts/"
+
+
+### Install syslog
+RUN \
+    apt-get update \
+    # Install rsyslog for syslog logging
+    && apt-get install -y --no-install-recommends rsyslog
+
+### Install latest supervisor via PipX
+ENV \
+    PIPX_HOME="/usr/local/pipx" \
+    PIPX_BIN_DIR="/usr/local/pipx/bin" \
+    PATH="/usr/local/pipx/bin:$PATH"
+RUN \
+    python -m pipx install --force \
+        supervisor \
+    && python -m pipx \
+        inject supervisor supervisor-stdout \
+    # supervisor needs this logging path
+    && mkdir -p /var/log/supervisor/ \
+    # Cleanup
+    && clean-layer.sh
+
+### Fix logging
+RUN sed -i '/imklog/s/^/#/' /etc/rsyslog.conf
+
+### Copy some configuration files
+# copy scripts
+COPY ./scripts/docker-entrypoint.py /
+COPY ./scripts/__init__.py $SCRIPTS_PATH
+COPY ./scripts/configure_app.py $SCRIPTS_PATH
+COPY ./scripts/functions_.py $SCRIPTS_PATH
+COPY ./scripts/run_supervisor.py $SCRIPTS_PATH
+# copy supervisor configs
+COPY ./configs/conf.d /etc/supervisor/conf.d/
+COPY ./configs/supervisord.conf /etc/supervisor/supervisord.conf
+# copy yaml validator schema
+COPY ./scripts/schema.yaml $SCRIPTS_PATH
+
+WORKDIR /app/
+
+ENV PYTHONPATH=/app
+
+ENTRYPOINT ["python", "/docker-entrypoint.py"]

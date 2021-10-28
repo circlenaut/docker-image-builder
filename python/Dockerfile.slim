@@ -1,0 +1,41 @@
+FROM registry.dev.proneer.co/slim:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+ARG PY_VERSION="3.8"
+
+######## Python ${PY_VERSION} Slim Image ###########
+
+RUN echo "*** Building python ${PY_VERSION} ***"
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.slim" \
+        org.label-schema.name="Python ${PY_VERSION} Slim Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install Python ${PY_VERSION}
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python${PY_VERSION}-minimal \
+        libpython${PY_VERSION}-stdlib \
+        python${PY_VERSION}-distutils \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Set default python version
+RUN \
+    update-alternatives --install /usr/bin/python python /usr/bin/python${PY_VERSION} 10
+
+WORKDIR /root
+
+CMD ['python --version']

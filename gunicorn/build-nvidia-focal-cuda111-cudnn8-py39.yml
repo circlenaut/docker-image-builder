@@ -1,0 +1,52 @@
+version: "0.1"
+
+info:
+    name: "proneer/gunicorn-nvidia-focal-cuda111-python39"
+    tags:
+      - "v0.1"
+      - "latest"
+    maintainer: "Phillip Strefling"
+    email: "phillip@proneer.co"
+    organization: "Proneer Corp."
+    version: "0.1"
+    repository: "registry.dev.proneer.co"
+build:
+    base: "nvidia/cuda:11.1-cudnn8-runtime-ubuntu20.04"
+    entrypoint: "python /docker-entrypoint.py"
+    projects:
+      - directory: "nvidia-gpu"
+        dockerfiles:
+          - file: "Dockerfile.focal.cuda111.base"
+            repository: "registry.dev.proneer.co"
+            name: "cuda"
+            tag: "nvidia-11.1-cudnn8-runtime-ubuntu20.04"
+            from: "nvidia/cuda:11.1-cudnn8-runtime-ubuntu20.04"
+      - directory: "python"
+        dockerfiles:
+          - file: "Dockerfile.extras"
+            repository: "registry.dev.proneer.co"
+            name: "python"
+            args:
+              - "PY_VERSION=3.9"
+            tag: "nvidia-11.1-cudnn8-runtime-ubuntu20.04-py39-extras"
+            from: "registry.dev.proneer.co/cuda:nvidia-11.1-cudnn8-runtime-ubuntu20.04"
+      - directory: "supervisor"
+        dockerfiles:
+          - file: "Dockerfile.base"
+            repository: "registry.dev.proneer.co"
+            name: "supervisor"
+            tag: "nvidia-11.1-cudnn8-runtime-ubuntu20.04-py39"
+            from: "registry.dev.proneer.co/python:nvidia-11.1-cudnn8-runtime-ubuntu20.04-py39-extras"
+      - directory: "gunicorn"
+        dockerfiles:
+          - file: "Dockerfile"
+            repository: "registry.dev.proneer.co"
+            name: "gunicorn"
+          #  copy-alias: "supervisor"
+          #  copy-from: "supervisor"
+          #  copy-files:
+          #    - "/scripts:/scripts"
+          #    - "/configs:/configs"
+            user: "root"
+            tag: "nvidia-11.1-cudnn8-runtime-ubuntu20.04-py39"
+            from: "registry.dev.proneer.co/supervisor:nvidia-11.1-cudnn8-runtime-ubuntu20.04-py39"

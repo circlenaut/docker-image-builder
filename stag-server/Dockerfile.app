@@ -35,7 +35,7 @@ RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-systemd \
-        python3-crontab \
+        python-crontab \
         python3-yaml \
         python3-typing-extensions \
         libyaml-dev \
@@ -103,4 +103,4 @@ ENV WORKSPACE_PORT=8300
 
 USER $UNAME
 
-ENTRYPOINT ["python3", "/docker-entrypoint.py"]
+ENTRYPOINT ["python", "/docker-entrypoint.py"]

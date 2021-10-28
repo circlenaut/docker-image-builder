@@ -110,7 +110,7 @@ if ENV_MAX_NUM_THREADS:
 
 sys.exit(
     run(
-        "python3 /scripts/run_staging.py",
+        "python /scripts/run_staging.py",
         shell=True,
     )
 )

@@ -1,0 +1,102 @@
+FROM registry.dev.proneer.co/base:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+ARG PY_VERSION="3.8"
+
+######## Python ${PY_VERSION} Media Image ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.media" \
+        org.label-schema.name="Python ${PY_VERSION} Media Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+USER root
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install Python ${PY_VERSION}
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python${PY_VERSION} \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install Python ${PY_VERSION}
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python${PY_VERSION} \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install python packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-setuptools \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install media packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        # Image/Media support
+        imagemagick \
+        libtiff-dev \
+        libjpeg8-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libglib2.0-0 \
+        libxext6 \
+        libsm6 \
+        libxext-dev \
+        libxrender1 \
+        libzmq3-dev \
+        libavcodec-dev \
+        libavformat-dev \
+        libswscale-dev \
+        libdc1394-22-dev \
+        libxine2-dev \
+        libv4l-dev \
+        libgstreamer1.0-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libfaac-dev \
+        libmp3lame-dev \
+        libtheora-dev \
+        libvorbis-dev \
+        libxvidcore-dev \
+        libopencore-amrnb-dev \
+        libopencore-amrwb-dev \
+        libavresample-dev \
+        x264 \
+        v4l-utils \
+        libgphoto2-dev \
+    # Cleanup
+    && clean-layer.sh \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Set default python version
+RUN \
+    update-alternatives --install /usr/bin/python python /usr/bin/python${PY_VERSION} 10
+
+WORKDIR /root
+
+CMD ['python --version']

@@ -1,0 +1,85 @@
+FROM nvidia/cuda:11.1-cudnn8-runtime-ubuntu20.04
+MAINTAINER proneer <phillip@proneer.co>
+
+######## Nvidia Ubuntu 20.04 CUDA 11.1 and cuDNN 8 Slim Image ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.focal.cuda111.slim" \
+        org.label-schema.name="Nvidia Ubuntu 20.04 Cuda 11.1 and Cudnn 8 Slim Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Copy layer cleanup script
+COPY scripts/clean-layer.sh  /usr/bin/clean-layer.sh
+COPY scripts/fix-permissions.sh  /usr/bin/fix-permissions.sh
+
+### Make clean-layer and fix-permissions executable
+RUN \
+    chmod a+rwx /usr/bin/clean-layer.sh && \
+    chmod a+rwx /usr/bin/fix-permissions.sh
+
+### Copy apt resources
+COPY sources-focal.list /etc/apt/sources.list
+COPY apt.conf /etc/apt/apt.conf.d/proneer
+
+### Update image
+RUN apt-get update && apt-get upgrade -y 
+
+### Install minimum packages
+RUN \
+    apt-get update \	
+	&& apt-get install -y --no-install-recommends \
+		apt-utils \
+		ca-certificates \
+		gnupg1 \
+		libffi7 \
+		locales \
+		openssl \
+		tzdata \
+	# Set Ubuntu apt
+	&& apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6A755776 \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Set timezone to UTC
+ENV TZ="Etc/UTC"
+RUN \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+	&& dpkg-reconfigure locales tzdata
+
+### Set up locales
+RUN locale-gen en_US.UTF-8
+ENV \
+    LANG=C.UTF-8 \
+    LANGUAGE=C.UTF-8 \
+    LC_ALL=C.UTF-8
+RUN /usr/sbin/update-locale
+
+ENV LANG="en_US.UTF-8" \
+	LC_CTYPE="en_US.UTF-8" \
+	LC_NUMERIC="en_US.UTF-8" \
+	LC_TIME="en_US.UTF-8" \
+	LC_COLLATE="en_US.UTF-8" \
+	LC_MONETARY="en_US.UTF-8" \
+	LC_MESSAGES="en_US.UTF-8" \
+	LC_PAPER="en_US.UTF-8" \
+	LC_NAME="en_US.UTF-8" \
+	LC_ADDRESS="en_US.UTF-8" \
+	LC_TELEPHONE="en_US.UTF-8" \
+	LC_MEASUREMENT="en_US.UTF-8" \
+	LC_IDENTIFICATION="en_US.UTF-8"
+
+### Fix permissions and set working directory
+RUN chmod a+x /usr/local/sbin/* && rm -fr /var/log/* /tmp/*
+WORKDIR /root
+
+CMD ['nvidia-smi']

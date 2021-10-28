@@ -1,0 +1,49 @@
+version: "0.1"
+
+info:
+    name: "proneer/python39-focal-cuda1121"
+    tags:
+      - "v0.1"
+      - "latest"
+    maintainer: "Phillip Strefling"
+    email: "phillip@proneer.co"
+    organization: "Proneer Corp."
+    version: "0.1"
+    repository: "registry.dev.proneer.co"
+build:
+    base: "ubuntu:20.04"
+    command: "python --version"
+    projects:
+      - directory: "base-cpu"
+        dockerfiles:
+          - file: "Dockerfile.focal.base"
+            repository: "registry.dev.proneer.co"
+            name: "base"
+            tag: "ubuntu20.04"
+            from: "ubuntu:20.04"
+      - directory: "base-gpu"
+        dockerfiles:
+          - file: "Dockerfile.focal.cuda11-2-1"
+            repository: "registry.dev.proneer.co"
+            name: "cuda"
+            tag: "11.2.1-ubuntu20.04"
+            from: "registry.dev.proneer.co/base:ubuntu20.04"
+          - file: "Dockerfile.focal.cuda11-2-1.runtime"
+            repository: "registry.dev.proneer.co"
+            name: "cuda"
+            tag: "11.2.1-runtime-ubuntu20.04"
+            from: "registry.dev.proneer.co/cuda:11.2.1-ubuntu20.04"
+          - file: "Dockerfile.focal.cuda11-2-1.runtime.cudnn8"
+            repository: "registry.dev.proneer.co"
+            name: "cuda"
+            tag: "11.2.1-cudnn8-runtime-ubuntu20.04"
+            from: "registry.dev.proneer.co/cuda:11.2.1-runtime-ubuntu20.04"
+      - directory: "python"
+        dockerfiles:
+          - file: "Dockerfile.base"
+            repository: "registry.dev.proneer.co"
+            name: "python"
+            args:
+              - "PY_VERSION=3.9"
+            tag: "11.2.1-cudnn8-runtime-ubuntu20.04-py39"
+            from: "registry.dev.proneer.co/cuda:11.2.1-cudnn8-runtime-ubuntu20.04"

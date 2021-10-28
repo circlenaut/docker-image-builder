@@ -53,7 +53,7 @@ cli_user_json = json.dumps(cli_user)
 action = "backup"
 log.info(f"backup script: '{action}'")
 run(
-    ['python3', '/scripts/backup_restore_config.py', 
+    ['python', '/scripts/backup_restore_config.py', 
         '--opts', cli_opts_json,
         '--env', cli_env_json,
         '--user', cli_user_json,
@@ -65,7 +65,7 @@ run(
 action = "schedule"
 log.info(f"backup script: '{action}'")
 run(
-    ['python3', '/scripts/backup_restore_config.py', 
+    ['python', '/scripts/backup_restore_config.py', 
         '--opts', cli_opts_json,
         '--env', cli_env_json,
         '--user', cli_user_json,

@@ -1,0 +1,55 @@
+version: "3.8"
+
+networks:
+  proxy:
+
+services:
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx-proxy
+    restart: unless-stopped
+    networks:
+      - proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+
+
+  pod2-colab:
+#    image: mltooling/ml-workspace-minimal:${POD2_VERSION?err}
+#    image: ezeddin/code-server:conda.dev.gpu
+    image: registry.dev.proneer.co/dev-server:latest
+    container_name: pod2-colab
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "2222:22"
+#      - "8080:8080"
+#    expose:
+#       - "8080"
+    networks:
+      - proxy
+#    volumes:
+#      - "./tests/config_test.yml:/scripts/config.yml"
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - 'driver': 'nvidia'
+            'count': 1
+            'capabilities': ['gpu', 'utility']
+    environment:
+      LOG_VERBOSITY: "DEBUG"
+      #VIRTUAL_BASE_URL: "/"
+      PROXY_ENCODINGS_GZIP: "true"
+      PROXY_ENCODINGS_ZSTD: "true"
+      PROXY_TEMPLATES: "true"
+#      WORKSPACE_AUTH_USER: "test"
+#      WORKSPACE_AUTH_PASSWORD: "${POD2_AUTH_PASSWORD:-password}"
+#      WORKSPACE_PORT: "8080"
+#      SHARED_LINKS_ENABLED: "true"
+#      MAX_NUM_THREADS: "auto"
+      NVIDIA_VISIBLE_DEVICES: "all"

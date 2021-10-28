@@ -66,4 +66,4 @@ COPY scripts/run_installers.py $SCRIPTS_PATH
 # copy yaml validator schema
 COPY scripts/schema.yaml $SCRIPTS_PATH
 
-ENTRYPOINT ["python3", "/docker-entrypoint.py"]
+ENTRYPOINT ["python", "/docker-entrypoint.py"]

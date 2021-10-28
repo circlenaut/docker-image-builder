@@ -1,7 +1,7 @@
 FROM registry.dev.proneer.co/cuda:10.2-runtime-ubuntu18.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base CUDA 10.2 Devel ###########
+######## CUDA 10.2 Devel ###########
 
 ### Image and project labels
 LABEL \
@@ -50,3 +50,5 @@ RUN \
     nvcc --version
 
 WORKDIR /root
+
+CMD ['nvidia-smi']

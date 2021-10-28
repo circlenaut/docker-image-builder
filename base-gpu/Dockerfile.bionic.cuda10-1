@@ -1,7 +1,7 @@
 FROM registry.dev.proneer.co/base:ubuntu18.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base CUDA 10.1 ###########
+######## CUDA 10.1 ###########
 
 ### Image and project labels
 LABEL \
@@ -55,3 +55,5 @@ ENV \
     NVIDIA_REQUIRE_CUDA="cuda>=10.1 brand=tesla,driver>=418,driver<419 brand=tesla,driver>=440,driver<441 driver>=450,driver<451"
 
 WORKDIR /root
+
+CMD ['nvidia-smi']

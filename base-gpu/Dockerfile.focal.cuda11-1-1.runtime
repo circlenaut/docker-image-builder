@@ -1,7 +1,7 @@
 FROM registry.dev.proneer.co/cuda:11.1.1-ubuntu20.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base CUDA 11.1 Update 1 Runtime ###########
+######## CUDA 11.1 Update 1 Runtime ###########
 
 ### Image and project labels
 LABEL \
@@ -42,3 +42,5 @@ RUN \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
+
+CMD ['nvidia-smi']

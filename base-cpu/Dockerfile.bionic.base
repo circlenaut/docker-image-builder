@@ -1,13 +1,13 @@
 FROM ubuntu:18.04
 MAINTAINER proneer <phillip@proneer.co>
 
-######## Base Ubuntu 18.04 Image ###########
+######## Ubuntu 18.04 Base ###########
 
 ### Image and project labels
 LABEL \
     maintainer="proneer <phillip@proneer.co>" \
         org.label-schema.docker.dockerfile="/Dockerfile.bionic.base" \
-        org.label-schema.name="Base Ubuntu 18.04 CPU Image" \
+        org.label-schema.name="Ubuntu 18.04 CPU Base Image" \
         org.label-schema.url="https://www.proneer.co"
 
 ### Technical Environment Variables
@@ -34,7 +34,7 @@ RUN \
         dialog \
         gcc \
         cmake \
-        python3.6 \
+        python.6 \
     # Cleanup
     && clean-layer.sh \
     && rm -rf /var/lib/apt/lists/* \

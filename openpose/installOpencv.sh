@@ -52,8 +52,8 @@ apt -y install libprotobuf-dev protobuf-compiler
 apt -y install libgoogle-glog-dev libgflags-dev
 apt -y install libgphoto2-dev libeigen3-dev libhdf5-dev doxygen
 
-apt -y install python3-dev python3-pip
-apt -y install python3-testresources
+apt -y install python-dev python3-pip
+apt -y install python-testresources
 
 # now install python libraries within this virtual environment
 pip3 install wheel numpy scipy matplotlib scikit-image scikit-learn ipython dlib
@@ -93,7 +93,7 @@ cmake -D CMAKE_BUILD_TYPE=RELEASE \
             -D INSTALL_PYTHON_EXAMPLES=ON \
 #            -D WITH_V4L=ON \
 #            -D WITH_GTK=ON \
-            -D OPENCV_PYTHON3_INSTALL_PATH=/usr/local/lib/python3.8/dist-packages \
+            -D OPENCV_PYTHON3_INSTALL_PATH=/usr/local/lib/python.8/dist-packages \
             -D OPENCV_GENERATE_PKGCONFIG=ON \
             -D OPENCV_PC_FILE_NAME=opencv.pc \
             -D OPENCV_ENABLE_NONFREE=ON \

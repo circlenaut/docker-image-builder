@@ -417,7 +417,7 @@ def setup_user(config, environment, args):
      for serv in services:
           log.info(f"configuring user service: '{serv}'")
           run(
-               ['sudo', '-i', '-u', config.get("name"), 'python3', f'/scripts/configure_{serv}.py', 
+               ['sudo', '-i', '-u', config.get("name"), 'python', f'/scripts/configure_{serv}.py', 
                     '--opts', cli_args_json, 
                     '--env', user_env_json, 
                     '--user', cli_user_json],
@@ -462,7 +462,7 @@ def run_user_services_config(config, environment, exists, args):
           # format dictionary arguments as json
           settings_json = json.dumps(settings)
           run(
-               ['sudo', '-i', '-u', user_name, 'python3', f'/scripts/configure_{serv}.py', 
+               ['sudo', '-i', '-u', user_name, 'python', f'/scripts/configure_{serv}.py', 
                     '--opts', cli_args_json, 
                     '--env', user_env_json, 
                     '--user', cli_user_json,
@@ -615,7 +615,7 @@ for usr in cli_configs.get("users"):
                log.info(f"backup script: '{action}'")
 
                run(
-                    ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
+                    ['sudo', '-i', '-u', user_name, 'python', '/scripts/backup_restore_config.py', 
                          '--opts', cli_opts_json,
                          '--env', workspace_env_json,
                          '--user', cli_user_json,
@@ -640,7 +640,7 @@ for usr in cli_configs.get("users"):
                # Setup backup script
                log.info(f"configuring user service: 'cron'")
                run(
-                    ['sudo', '-i', '-u', user_name, 'python3', f'/scripts/configure_cron.py', 
+                    ['sudo', '-i', '-u', user_name, 'python', f'/scripts/configure_cron.py', 
                          '--opts', cli_opts_json, 
                          '--env', workspace_env_json, 
                          '--user', cli_user_json],
@@ -723,7 +723,7 @@ for usr in cli_configs.get("users"):
      )
      log.info(f"Running installer scripts")
      run(
-          ['sudo', '-i', '-u', user_name, 'python3', '/scripts/run_installers.py', 
+          ['sudo', '-i', '-u', user_name, 'python', '/scripts/run_installers.py', 
                '--opts', cli_opts_json,
                '--env', workspace_env_json,
                '--user', cli_user_json],
@@ -743,7 +743,7 @@ for usr in cli_configs.get("users"):
      action = "backup"
      log.info(f"backup script: '{action}'")
      run(
-          ['sudo', '-i', '-u', user_name, 'python3', '/scripts/backup_restore_config.py', 
+          ['sudo', '-i', '-u', user_name, 'python', '/scripts/backup_restore_config.py', 
                '--opts', cli_opts_json,
                '--env', workspace_env_json,
                '--user', cli_user_json,
@@ -758,7 +758,7 @@ for usr in cli_configs.get("users"):
 cli_users_json = json.dumps({"users": username_list})
 # execute
 run(
-     ['python3', f'/scripts/setup_ssh.py', 
+     ['python', f'/scripts/setup_ssh.py', 
           '--opts', cli_opts_json, 
           '--env', workspace_env_json,
           '--users', cli_users_json],

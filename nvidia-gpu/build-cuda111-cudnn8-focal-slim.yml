@@ -1,0 +1,23 @@
+version: "0.1"
+
+info:
+    name: "proneer/slim-nvidia-focal-cuda111"
+    tags:
+      - "v0.1"
+      - "latest"
+    maintainer: "Phillip Strefling"
+    email: "phillip@proneer.co"
+    organization: "Proneer Corp."
+    version: "0.1"
+    repository: "registry.dev.proneer.co"
+build:
+    base: "nvidia/cuda:11.1-cudnn8-runtime-ubuntu20.04"
+    command: "nvidia-smi"
+    projects:
+      - directory: "nvidia-gpu"
+        dockerfiles:
+          - file: "Dockerfile.focal.cuda111.base"
+            repository: "registry.dev.proneer.co"
+            name: "cuda"
+            tag: "slim-nvidia-11.1-cudnn8-runtime-ubuntu20.04"
+            from: "nvidia/cuda:11.1-cudnn8-runtime-ubuntu20.04"

@@ -1,0 +1,173 @@
+FROM registry.dev.proneer.co/base:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+ARG PY_VERSION="3.8"
+
+######## Python ${PY_VERSION} Development Image ###########
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.dev" \
+        org.label-schema.name="Python ${PY_VERSION} Development Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+USER root
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install Python ${PY_VERSION}
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python${PY_VERSION} \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install python packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-setuptools \
+        python${PY_VERSION}-venv \
+        python${PY_VERSION}-dev \
+        python${PY_VERSION}-testresources \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install development packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        jq \
+        # Editors
+        nano \
+        vim \
+        # System tools
+        tuptime \
+        ncdu \
+        iotop \
+        psmisc \
+        lsof \
+        # Terminal tools
+        screen \
+        less \
+        rename \
+        whereami \
+        rpl \
+        locate \
+        # Cuda tools
+        nvtop \
+        # Build libs
+        build-essential \
+        checkinstall \
+        make \
+        #cmake \
+        cmake-curses-gui \
+        pkg-config \
+        # Sec libs
+        libargon2-0-dev \
+        # DB libs
+        sqlite3 \
+        # Image/Media support
+        imagemagick \
+        libtiff-dev \
+        libjpeg8-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libglib2.0-0 \
+        libxext6 \
+        libsm6 \
+        libxext-dev \
+        libxrender1 \
+        libzmq3-dev \
+        libavcodec-dev \
+        libavformat-dev \
+        libswscale-dev \
+        libdc1394-22-dev \
+        libxine2-dev \
+        libv4l-dev \
+        libgstreamer1.0-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libfaac-dev \
+        libmp3lame-dev \
+        libtheora-dev \
+        libvorbis-dev \
+        libxvidcore-dev \
+        libopencore-amrnb-dev \
+        libopencore-amrwb-dev \
+        libavresample-dev \
+        x264 \
+        v4l-utils \
+        libgphoto2-dev \
+        # Protobuffer support
+        protobuf-compiler \
+        libprotobuf-dev \
+        libprotoc-dev \
+        autoconf \
+        automake \
+        libtool \
+        fonts-liberation \
+        google-perftools \
+        # C++
+        libtbb-dev \
+        qt5-default \
+        libgflags-dev \
+        libeigen3-dev \
+        # Math libs
+        libatlas-base-dev \
+        # Data libs
+        libhdf5-dev \
+        # Doc libs
+        doxygen \
+        # Compression libs
+        gzip \
+        lzop \
+    # Cleanup
+    && clean-layer.sh \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install pip packages
+ENV \
+    PIPX_HOME="/usr/local/pipx" \
+    PIPX_BIN_DIR="/usr/local/pipx/bin" \
+    PATH="/usr/local/pipx/bin:$PATH"
+RUN \
+    mkdir -p "$PIPX_HOME" "$PIPX_BIN_DIR" && chmod -R 777 "$PIPX_HOME" \
+    && python${PY_VERSION} -m pip install --user \
+        pipx
+        wheel \
+        psutil \
+        python-crontab \
+        pyyaml \
+        yamale \
+        typing \
+        passlib \
+        bcrypt \
+        watchgod \
+        coloredlogs \
+    && python${PY_VERSION} -m pipx \
+        ensurepath \
+    # Cleanup
+    && clean-layer.sh \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Set default python version
+RUN \
+    update-alternatives --install /usr/bin/python python /usr/bin/python${PY_VERSION} 10
+
+WORKDIR /root
+
+CMD ['python --version']

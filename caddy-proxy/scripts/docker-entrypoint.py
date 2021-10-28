@@ -130,4 +130,4 @@ if ENV_MAX_NUM_THREADS:
     # GOTO_NUM_THREADS
 
 
-sys.exit(call("python3 /scripts/run_caddy.py", shell=True))
+sys.exit(call("python /scripts/run_caddy.py", shell=True))

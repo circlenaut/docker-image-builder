@@ -44,20 +44,28 @@ import shutil
 import tarfile
 import tempfile
 import itertools
+from typing import Dict, List
+
+from datetime import datetime
 from pathlib import Path, PurePath
 from math import floor
 from time import time, sleep
 from urllib.parse import quote, urljoin
+from tqdm import trange
+
 
 ### Define classes
 class BuildError(Exception):
     '''raise this when there's an Exception during the build process'''
 
+
 class LoadError(Exception):
     '''raise this when there's an Exception loading config files'''
 
+
 class OperationError(Exception):
     '''raise this when there's an Exception running operations'''
+
 
 class Constants(object):
     def __init__(self):
@@ -65,6 +73,7 @@ class Constants(object):
         self._SEP = re.compile('/|\\\\') if self.IS_WINDOWS_PLATFORM else re.compile('/')
         self._cache = {}
         self._MAXCACHE = 100
+
 
 class Settings(Constants):
     def __init__(self):
@@ -79,11 +88,12 @@ class Settings(Constants):
         self.parser.add_argument('--push', action='store_true', default=False, required=False, help="Push images to repositoy")
         self.parser.add_argument('--pull', action='store_true', default=False, required=False, help="Pull images from repositoy")
         self.parser.add_argument('--local', action='store_true', default=False, required=False, help="build all images locally")
+        self.parser.add_argument('--nocache', action='store_true', default=False, required=False, help="build using cache")
         self.parser.add_argument('--repository', type=str, default='', required=False, help="Repository to push to")
         self.parser.add_argument('--save', type=str, required=False, help="Location to save image")
         self.parser.add_argument('--dryrun', action='store_true', default=False, required=False, help='Execute as a dry run')
         self.parser.add_argument('--gzip', action='store_true', default=False, required=False, help='Compress context files')
-        self.parser.add_argument('--overwrite', action='store_true', default=False, required=False, help='Overwrite existing build files')
+        self.parser.add_argument('--overwrite', action='store_true', default=False, required=False, help='Overwrite existing build files and images')
         self.parser.add_argument('--show', action='store_true', default=False, required=False, help='Show Dockerfiles on console')
         self.parser.add_argument('--rm_build_files', action='store_true', default=False, required=False, help='Remove build files')
         self.parser.add_argument('-f', '--force', action='store_true', default=False, required=False, help='Force a command without checks')
@@ -96,6 +106,7 @@ class Settings(Constants):
 
         self.arg = self.parser.parse_args()
         return self.arg
+
 
 class Pattern(object):
     def __init__(self, pattern_str):
@@ -132,6 +143,7 @@ class Pattern(object):
 
     def match(self, filepath):
         return fnmatch(normalize_slashes(filepath), self.cleaned_pattern)
+
 
 class PatternMatcher(object):
     def __init__(self, patterns):
@@ -195,6 +207,7 @@ class PatternMatcher(object):
                     yield sub
 
         return rec_walk(root)
+
 
 class Basics(Settings):
     def __init__(self):
@@ -284,6 +297,7 @@ class Basics(Settings):
                 self.logger.error(f"does not exist: '{path}'")
             return False
 
+
 class Logging(Basics):
     def __init__(self):
         Basics.__init__(self)
@@ -308,6 +322,7 @@ class Logging(Basics):
         fh.setFormatter(formatter)
         self.log.addHandler(fh)
         return self.log
+
 
 class Setup(Logging):
     def __init__(self):
@@ -387,16 +402,17 @@ class Setup(Logging):
             if not self.continue_input():
                 sys.exit()
 
+
 class PushStatus(object):
     def __init__(self):
-        self.tracker = list()
-        self.layer = dict()
-        self.progress_tracker = dict()
-        self.num_trackers = list()
-        self.num_identities = list()
-        self.pbar = dict()
-        self.transfer_tracker = dict()
-        self.time_tracker = dict()
+        self.tracker = []
+        self.layer = {}
+        self.progress_tracker = {}
+        self.num_trackers = []
+        self.num_identities = []
+        self.pbar = {}
+        self.transfer_tracker = {}
+        self.time_tracker = {}
 
     def store(self, progress):
         for status in self.tracker:
@@ -405,21 +421,21 @@ class PushStatus(object):
             for i in self.layer.keys():
                 if i == status.get("id"):
                     if self.progress_tracker.get(status.get("id")) == None:
-                        self.progress_tracker[status.get("id")] = list()
+                        self.progress_tracker[status.get("id")] = []
                     else:
                         self.progress_tracker[status.get("id")].append({status.get("status"): status.get("progressDetail")})
         
-        status_types = dict()
-        self.identities = list()
-        transfer_progress = dict()
-        transfer_totals = dict()
+        status_types = {}
+        self.identities = []
+        transfer_progress = {}
+        transfer_totals = {}
         for idn, progressDetail in self.progress_tracker.items():
             #print(progressDetail)
             latest = len(progressDetail) - 1
             self.identities.append(idn)
             if transfer_progress.get(idn) == None:
-                transfer_progress[idn] = dict()   
-                transfer_totals[idn] = dict()        
+                transfer_progress[idn] = {}   
+                transfer_totals[idn] = {}        
             if len(progressDetail) > 1:
                 progress_status = list(progressDetail[latest-1].keys())[0]
                 status_types[progress_status] = None
@@ -607,6 +623,7 @@ class PushStatus(object):
     def set_image(self, name):
         self.image = name
 
+
 class Operations(Logging):
     def __init__(self):
         Logging.__init__(self)
@@ -629,6 +646,11 @@ class Operations(Logging):
         self.build_dir = Path(self.configs.get("info").get("build_dir")) if self.configs.get("info").get("build_dir") else self.work_dir.joinpath("build")
         self.project_build_dir = self.build_dir.joinpath(Path(self.configs.get("info").get("name")))
         self.version_tags = self.configs.get("info").get("tags")
+        
+        # Get current for tagging
+        now = datetime.now()
+        self.now_tag = now.strftime("%Y-%m-%d_%H-%M%z")
+
         # Create build directory
         if self.arg.dryrun:
             self.logger.info(f"Dry run: creating build directories: '{self.project_build_dir.as_posix()}'")
@@ -760,17 +782,17 @@ class Operations(Logging):
             if logger: self.logger.warning(f"hash '{source_hash}' does not match '{target_file_hash}'")
 
     def convert_bytes(self, bytes_number):
-        tags = [ "Byte", "Kilobyte", "Megabyte", "Gigabyte", "Terabyte" ]
+        units = [ "Byte", "Kilobyte", "Megabyte", "Gigabyte", "Terabyte" ]
     
         i = 0
         double_bytes = bytes_number
     
-        while (i < len(tags) and  bytes_number >= 1024):
+        while (i < len(units) and  bytes_number >= 1024):
                 double_bytes = bytes_number / 1024.0
                 i = i + 1
                 bytes_number = bytes_number / 1024
     
-        #return str(round(double_bytes, 2)) + " " + tags[i]
+        #return str(round(double_bytes, 2)) + " " + units[i]
         return int(round(double_bytes, 1))
 
     def touch(self, path):
@@ -929,20 +951,40 @@ class Docker(Operations):
         import docker
         Operations.__init__(self)
         self.cli = docker.APIClient(base_url='unix://var/run/docker.sock')
-        self.term = dict()
+        self.term = {}
         self.logger.debug(self.cli.version())
         self.errors = docker.errors
         self.color_logs()
         self.build_success = True
         self.pull_order = None
         self.pulled_image = None
-        self.console_output = dict()
-        self.status_test = dict()
+        self.console_output = {}
+        self.status_test = {}
         self.out_stream = str()
+
+    def _copy_from_line(self, image_count: int, from_image:str, from_files: List) -> None:
+        if from_files is None:
+            self.logger.error(f"No copy from files specified for alias '{from_image}'")
+            return
+
+        for cp_fr in from_files:
+            copy_instructions = cp_fr.split(":")
+            if len(copy_instructions) == 2:
+                from_line = f"COPY --from={from_image} {copy_instructions[0]} {copy_instructions[1]}"
+                self.logger.info(f"copying files from alias '{from_image}':'{copy_instructions[0]}' to '{copy_instructions[1]}'")
+            elif len(copy_instructions) == 3:
+                from_line = f"COPY --from={from_image} --chown={copy_instructions[0]}:{copy_instructions[0]} {copy_instructions[1]} {copy_instructions[2]}"
+                self.logger.info(f"copying files from alias '{from_image}':'{copy_instructions[1]}' to '{copy_instructions[2]}' with permission '{copy_instructions[0]}:{copy_instructions[0]}'")
+            else:
+                self.logger.error(f"copy instructions for alias '{from_image}' must in include src:dst, not '{cp_fr}'")                                
+                continue
+            
+            self.dockerfile_image_lines[image_count].append(from_line)
+            self.dockerfile_image_lines[image_count].append(from_line)
 
     def lines_to_text(self, lines, justify=None):
         count = 0
-        formated_lines = list()
+        formated_lines = []
         for i, l in enumerate(lines):
             if i == 0:
                 fl = f"{str(count).ljust(justify)} {l}\n" if justify else f"{l}\n"
@@ -954,8 +996,6 @@ class Docker(Operations):
             count+=1
         fulltext = str().join(formated_lines)
         return fulltext
-
-
 
     def exclude_paths(self, root, patterns, dockerfile=None):
         """
@@ -1104,7 +1144,7 @@ class Docker(Operations):
                     'progress': progress,
                 }
             if len(self.console_output) > 0:
-                #remove = dict()
+                #remove = {}
                 #for idn, stats in self.console_output.items():
                 #    if stats.get("status") == "Pull complete":
                 #        remove[idn] = None
@@ -1187,17 +1227,18 @@ class Docker(Operations):
         projects = self.configs.get("build").get("projects")
 
         ### Process Dockerfiles
-        dockerfile_final_lines = list()
-        final_image_docker_path = str()
-        project_files = list()
+        self.dockerfile_image_lines = {}
+        self.dockerfile_final_lines = []
+        final_image_docker_path = ""
+        project_files = []
         image_count = 0
-        push_versions = dict()
-        pull_versions = dict()
+        push_versions = {}
+        pull_versions = {}
         total_images = sum([len(p.get("dockerfiles")) for p in projects])
 
         ### Generate a sorted and indexed list of images to check against the repository
         all_images_list = list(itertools.chain.from_iterable([(p.get("dockerfiles")) for p in projects]))
-        all_images_dict = dict()
+        all_images_dict = {}
         for idx, a_img_props in enumerate(all_images_list):
             docker_path = "{r}/{n}:{t}".format(r=a_img_props.get("repository"), n=a_img_props.get("name"), t=a_img_props.get("tag"))
             reverse_idx = (total_images - 1) - idx
@@ -1214,7 +1255,7 @@ class Docker(Operations):
         ### Iterate through projects
         for p in projects:
             ### Store a list of Dockerfiles to process
-            dockerfiles = list()
+            dockerfiles = []
             for df in p.get("dockerfiles"):
                 dockerfiles.append(df.get("file"))
 
@@ -1239,13 +1280,27 @@ class Docker(Operations):
                     image_repository = main_repository if main_repository else image.get("repository")
                     image_name = image.get("name")
                     image_tag = image.get("tag") if image.get("tag") else "latest"
-                    # set dockerfile_path
+                    # Get image arguments
+                    image_args = {a.split("=")[0]:a.split("=")[1] for a in image.get("args") if len(a.split("=")) == 2} if image.get("args") else None
+                    # Allow copying of image contents
+                    image_copy_alias = image.get("copy-alias")
+                    image_copy_from = image.get("copy-from")
+                    image_copy_files = image.get("copy-files")
+                    # Determine whether to copy existing entrypoint or command
+                    image_copy_entrypoint = image.get("copy-entrypoint")
+                    image_copy_cmd = image.get("copy-cmd")
+                    # Set a user for the image
+                    image_user = image.get("user")
+                    # Set image exposed port
+                    image_port= image.get("expose-port")
+                    # Set dockerfile_path
                     dockerfile_path = project_dir.joinpath(image.get("file"))
                     # Set image Docker path
                     image_docker_path = f"{image_repository}/{image_name}:{image_tag}"
 
-                    # Display current image
-                    self.logger.debug(f"image({image_count}): {image_docker_path}")                    
+                    # Display current image and arguments
+                    self.logger.debug(f"image({image_count}): {image_docker_path}")
+                    self.logger.warning(f"image({image_count}) arguments:\n'{json.dumps(image_args, indent=4)}'")               
 
                     ### Pull images from repository if exists
                     if not self.pull_order:
@@ -1253,11 +1308,12 @@ class Docker(Operations):
                             push_version = img.get("push_version") if img.get("push_version") is not None else "latest"
                             image_push = True if self.arg.push or img.get("push_version") else False
                             if self.arg.push:
-                                push_versions[img.get("path")] = [push_version] + self.version_tags
+                                push_versions[img.get("path")] = [push_version, self.now_tag] + self.version_tags
                             elif push_version != "latest":
                                 push_versions[img.get("path")] = [push_version, "latest"] if image_push else []
                             elif push_version == "latest":
-                                push_versions[img.get("path")] = ["latest"] if image_push else []
+                                push_versions[img.get("path")] = ["latest", self.now_tag] if image_push else []
+                                
                             pull_version = img.get("pull_version") if img.get("pull_version") is not None else "latest"
                             image_pull = True if self.arg.pull or img.get("pull_version") else False
                             pull_versions[img.get("path")] = self.version_tags + [pull_version, ""]
@@ -1320,7 +1376,7 @@ class Docker(Operations):
                         self.logger.info(f"Building image: '{image_tag}' from '{dockerfile_path.as_posix()}'")
 
                         ### Read dockerfile
-                        df_lines = list()
+                        self.dockerfile_image_lines[image_count] = []
                         with open(dockerfile_path.as_posix()) as f:
                             lines = f.readlines()
 
@@ -1333,7 +1389,7 @@ class Docker(Operations):
                         dockerfile_cmd = None
 
                         ### Modify Dockerfile
-                        copy_elements = list()
+                        copy_elements = []
                         cont_count = 0
                         list_files = False
                         for l in lines:
@@ -1343,13 +1399,13 @@ class Docker(Operations):
                             if l[0] == "#":
                                 self.logger.debug(f"skipping commented line: {l}")
                                 continue
-                            copy_chars = list()
+                            copy_chars = []
                             skip_line = False
                             items = l.split()
                             
                             copy_count = 0
                             num_items = len(items)
-                            element = list()
+                            element = []
                             if items[0] == "COPY":
                                 for c in l:
                                     if c == '[':
@@ -1362,7 +1418,7 @@ class Docker(Operations):
                                     elif list_files:
                                         if c == ',':
                                             copy_elements.append("".join(element))
-                                            element = list()
+                                            element = []
                                         else:
                                             element.append(c)
                             # Get list of files seperated by spaces and spanning lines
@@ -1393,17 +1449,22 @@ class Docker(Operations):
                                         if all([image_count == 0, build_base, project_from]):
                                             if project_from == build_base:
                                                 self.logger.debug(f"Base image: '{build_base}'")
-                                                dockerfile_final_lines.append(f"FROM {build_base}")
-                                                df_lines.append(f"FROM {build_base}")
+                                                build_line = f"FROM {build_base}"
+                                                self.dockerfile_final_lines.append(build_line)
+                                                self.dockerfile_image_lines[image_count].append(build_line)
                                             else:
                                                 self.logger.error(f"Base image: '{build_base}' does not match source of first image '{project_from}'!")
                                                 sys.exit()
-                                        elif all([image_count > 0, project_from]):
+                                        elif all([image_count > 0, project_from is not None]):
                                             self.logger.debug(f"Source image: '{project_from}'")
-                                            dockerfile_final_lines.append(f"FROM {project_from}")
-                                            df_lines.append(f"FROM {project_from}")
+                                            if image_copy_alias is not None:
+                                                build_line = f"FROM {project_from} as {image_copy_alias}"
+                                            else:
+                                                build_line = f"FROM {project_from}"
+                                            self.dockerfile_final_lines.append(build_line)
+                                            self.dockerfile_image_lines[image_count].append(build_line)
                                         else:
-                                            df_lines.append(f"{l}")
+                                            self.dockerfile_image_lines[image_count].append(f"{l}")
                                         skip_line = True
                                         continue
                                     if w == "ENTRYPOINT":
@@ -1421,9 +1482,27 @@ class Docker(Operations):
                                 if skip_line:
                                     continue
                                 else:
-                                    df_lines.append(l.rstrip())
-                                    dockerfile_final_lines.append(l.rstrip())
+                                    self.dockerfile_image_lines[image_count].append(l.rstrip())
+                                    self.dockerfile_final_lines.append(l.rstrip())
                         
+                        # copy from image files
+                        if image_copy_from is not None:
+                            self._copy_from_line(image_count, image_copy_from, image_copy_files)
+                        # create and set user
+                        if image_user is not None:
+                            user_create_line = f"RUN id -u {image_user} &>/dev/null || useradd -ms /bin/bash {image_user}"
+                            self.dockerfile_image_lines[image_count].append("USER root")
+                            self.dockerfile_final_lines.append("USER root")
+                            self.dockerfile_image_lines[image_count].append(user_create_line)
+                            self.dockerfile_final_lines.append(user_create_line)
+                            
+                            user_set_line = f"USER {image_user}"
+                            self.dockerfile_image_lines[image_count].append(user_set_line)
+                            self.dockerfile_final_lines.append(user_set_line)
+                        if image_port is not None:
+                            expose_line = f"EXPOSE {image_port}"
+                            self.dockerfile_image_lines[image_count].append(expose_line)
+                            self.dockerfile_final_lines.append(expose_line)
                         # copy image files
                         for e in copy_elements:
                             def is_from(field):
@@ -1452,35 +1531,35 @@ class Docker(Operations):
                         # Set image entrypoint
                         if build_entrypoint:
                             final_entrypoint = build_entrypoint
-                        elif dockerfile_entrypoint:
+                        elif dockerfile_entrypoint and image_copy_entrypoint:
                             final_entrypoint = dockerfile_entrypoint
                         else:
                             final_entrypoint = None
                         if final_entrypoint and image_count == (total_images - 1):
                             self.logger.debug(f"Final Entrypoint: '{final_entrypoint}'")
-                            dockerfile_final_lines.append(f"ENTRYPOINT {final_entrypoint}")
-                            df_lines.append(f"ENTRYPOINT {final_entrypoint}")
+                            self.dockerfile_final_lines.append(f"ENTRYPOINT {final_entrypoint}")
+                            self.dockerfile_image_lines[image_count].append(f"ENTRYPOINT {final_entrypoint}")
 
                         # Set image command
                         if build_cmd:
                             final_cmd = build_cmd
-                        elif dockerfile_cmd:
+                        elif dockerfile_cmd and image_copy_cmd:
                             final_cmd = dockerfile_cmd
                         else:
                             final_cmd = None
                         if final_cmd and image_count == (total_images - 1):
                             self.logger.debug(f"Final Command: '{final_cmd}'")
-                            dockerfile_final_lines.append(f"CMD {final_cmd}")
-                            df_lines.append(f"CMD {final_cmd}")
+                            self.dockerfile_final_lines.append(f"CMD {final_cmd}")
+                            self.dockerfile_image_lines[image_count].append(f"CMD {final_cmd}")
 
                         # Display dockerfile contents to console
                         if self.arg.show:
                             print(f"Image: {image_docker_path}")
                             print(f"Dockerfile: {dockerfile_path}")
-                            print(self.lines_to_text(df_lines, justify=4))
+                            print(self.lines_to_text(self.dockerfile_image_lines[image_count], justify=4))
             
                         # Encode before building
-                        dockerfile_encoded = io.BytesIO(self.lines_to_text(df_lines).encode('utf-8'))
+                        dockerfile_encoded = io.BytesIO(self.lines_to_text(self.dockerfile_image_lines[image_count]).encode('utf-8'))
 
                         # Read dockerignore for files to exclude
                         docker_ignore = project_dir.joinpath('.dockerignore')
@@ -1512,6 +1591,8 @@ class Docker(Operations):
                                                 tag=image_docker_path,
                                                 decode=True,
                                                 custom_context=True,
+                                                buildargs=image_args,
+                                                nocache=self.arg.nocache,
                                             ):
                                                 self.out_stream = self.process_build_stream(line)
                                                 if self.out_stream:
@@ -1574,6 +1655,10 @@ class Docker(Operations):
                                         #    f.close()
                                 self.logger.info(f"Pushing: '{version_image_docker_path}'")
                                 if not self.arg.dryrun:
+                                    if self.arg.overwrite:
+                                        self.logger.warning(f"Overwriting image: '{version_image_docker_path}'")
+                                        self.cli.remove_image(version_image_docker_path, force=True)
+
                                     pushstat.set_image(version_image_docker_path)
                                     [pushstat.store(line) for line in self.cli.push(
                                         version_image_docker_path, stream=True, decode=True
@@ -1599,7 +1684,7 @@ class Docker(Operations):
         if self.arg.show:
             print(f"Final Image: {final_image_docker_path}")
             print(f"Final dockerfile: '{dockerfile_final_path}'")
-            print(self.lines_to_text(dockerfile_final_lines, justify=4))
+            print(self.lines_to_text(self.dockerfile_final_lines, justify=4))
         
         ### Write final Dockerfile
         if self.arg.dryrun:
@@ -1607,7 +1692,7 @@ class Docker(Operations):
         if not self.arg.dryrun and self.build_success:
             self.logger.info(f"Writing final Dockerfile to: '{dockerfile_final_path.as_posix()}")
             with open(dockerfile_final_path.as_posix(), "w") as f: 
-                f.write(self.lines_to_text(dockerfile_final_lines))
+                f.write(self.lines_to_text(self.dockerfile_final_lines))
             # Track Dockerfile
             project_files.append(dockerfile_final_path.as_posix())
             # Fix Dockerfile permissions
@@ -1722,6 +1807,7 @@ def translate(pat):
             res = res + re.escape(c)
 
     return res + '$'
+
 
 def main():
     ### Start builder

@@ -1,0 +1,92 @@
+FROM registry.dev.proneer.co/base:latest
+MAINTAINER proneer <phillip@proneer.co>
+
+ARG PY_VERSION="3.8"
+
+######## Python ${PY_VERSION} Base Image ###########
+RUN echo "*** Building python ${PY_VERSION} ***"
+
+### Image and project labels
+LABEL \
+    maintainer="proneer <phillip@proneer.co>" \
+        org.label-schema.docker.dockerfile="/Dockerfile.base" \
+        org.label-schema.name="Python ${PY_VERSION} Base Image" \
+        org.label-schema.url="https://www.proneer.co"
+
+USER root
+
+### Technical Environment Variables
+ENV \
+    USER_GID=0 \
+    DEBIAN_FRONTEND=noninteractive
+
+### Install Python ${PY_VERSION}
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python${PY_VERSION} \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install python packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-setuptools \
+    # Cleanup
+    && clean-layer.sh \
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Install minimal packages
+RUN \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        # Editors
+        nano \
+        # Build libs
+        build-essential \
+        checkinstall \
+        make \
+        #cmake \
+        pkg-config \
+        # Sec libs
+        libargon2-0-dev \
+        # Protobuffer support
+        protobuf-compiler \
+        libprotobuf-dev \
+        libprotoc-dev \
+        autoconf \
+        automake \
+        libtool \
+        fonts-liberation \
+        google-perftools \
+        # C++
+        libtbb-dev \
+        qt5-default \
+        libgflags-dev \
+        libeigen3-dev \
+        # Math libs
+        libatlas-base-dev \
+        # Data libs
+        libhdf5-dev \
+        # Compression libs
+        gzip \
+        lzop \
+    # Cleanup
+    && clean-layer.sh \
+    # Fix permissions
+    && fix-permissions.sh $HOME
+
+### Set default python version
+RUN \
+    update-alternatives --install /usr/bin/python python /usr/bin/python${PY_VERSION} 10
+
+WORKDIR /root
+
+CMD ['python --version']
