@@ -1,9 +1,16 @@
-# Docker-Images
+# Setup
 
-## What is this?
+## Create Symlinks
+"/nfs/nfs1-gpu-cluster1-dal10-ibm/guests/{user}/Docker-Images/" --> "/opt/docker/Docker-Images"
+"/opt/docker/Docker-Images/Image-Builder/image-builder" --> "/usr/local/bin/image-builder"
+"/opt/docker/Docker-Images/Image-Builder/schema.yaml" --> "/usr/local/etc/image-builder/schema.yaml"
 
-I put this repository together to handle mixing and matching various dockerfiles I handle during the course of my ML work.
+## Create Sudo Rule
 
-## Documentation?
+This script requires elevated permission, run with sudo.
 
-I'll put together some docs when I have a chance.
+Create or append to: '/etc/sudoers.d/docker'
+    
+    %devs   ALL=(ALL)       NOPASSWD: /usr/bin/docker
+
+make sure "user" is member of the "devs" group
