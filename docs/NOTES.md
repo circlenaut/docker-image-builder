@@ -20,6 +20,7 @@ Refs:
 """
 
 #@TODO:
+- Check if run as root
 # - incorporate elements from these:
 #   https://raw.githubusercontent.com/bgruening/docker-build/master/build.py
 #   https://github.com/AlienVault-Engineering/pybuilder-docker/blob/master/src/main/python/pybuilder_docker/__init__.py
