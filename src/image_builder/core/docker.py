@@ -620,11 +620,11 @@ class Docker(ABC):
                             push_version = img.get("push_version") if img.get("push_version") is not None else "latest"
                             image_push = True if self.settings.args.push or img.get("push_version") else False
                             if self.settings.args.push:
-                                push_versions[img.get("path")] = [push_version, self.now_tag] + self.ops.version_tags
+                                push_versions[img.get("path")] = [push_version, self.ops.now_tag] + self.ops.version_tags
                             elif push_version != "latest":
                                 push_versions[img.get("path")] = [push_version, "latest"] if image_push else []
                             elif push_version == "latest":
-                                push_versions[img.get("path")] = ["latest", self.now_tag] if image_push else []
+                                push_versions[img.get("path")] = ["latest", self.ops.now_tag] if image_push else []
                                 
                             pull_version = img.get("pull_version") if img.get("pull_version") is not None else "latest"
                             image_pull = True if self.settings.args.pull or img.get("pull_version") else False

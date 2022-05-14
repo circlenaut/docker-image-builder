@@ -238,4 +238,4 @@ prime/
 /*/build
 
 # Version files
-*._version.py 
+*_version.py 

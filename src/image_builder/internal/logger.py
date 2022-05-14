@@ -14,15 +14,14 @@ class Logging(ABC):
     def __init__(self):        
         self.settings = Settings()
         
-        # helpers.__init__(self)
-        logger = self.setup_logging()
+        self.setup_logging()
         self.color_logs()
         
-        self.critical = logger.critical
-        self.error = logger.error
-        self.warning = logger.warning
-        self.info = logger.info
-        self.debug = logger.debug
+        self.critical = self.log.critical
+        self.error = self.log.error
+        self.warning = self.log.warning
+        self.info = self.log.info
+        self.debug = self.log.debug
     
     def setup_logging(self):
         logging.basicConfig(
@@ -31,7 +30,6 @@ class Logging(ABC):
             stream=sys.stdout)
         self.log = logging.getLogger(__name__)   
         self.log.setLevel(self.settings.args.log_level.upper())
-        return self.log
     
     def color_logs(self):
         coloredlogs.install(fmt='[%(levelname)s] %(message)s', level=self.settings.args.log_level.upper(), logger=self.log)
@@ -42,4 +40,3 @@ class Logging(ABC):
         fh.setLevel(self.settings.args.log_level.upper())
         fh.setFormatter(formatter)
         self.log.addHandler(fh)
-        return self.log

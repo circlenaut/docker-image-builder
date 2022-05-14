@@ -16,7 +16,8 @@ from ..helpers import InputOutput
 from ..internal import (
     Logging,
     BuildError,
-    LoadError
+    LoadError,
+    OperationError
 )
 
 __all__ = ['Operations']
@@ -130,7 +131,7 @@ class Operations(ABC):
 
     def copy_dir(self, source, target):
         success = False
-        if self.valid_dir(source):
+        if self.io.valid_dir(source):
             #for dirpath, dirnames, filenames in os.walk(source):
             #    for f in filenames:
             #        src_file = os.path.join(dirpath, src_file)
