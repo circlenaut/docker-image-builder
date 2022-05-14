@@ -1,0 +1,7 @@
+coloredlogs>=15.0
+ruyaml>=0.20.0
+bcrypt>=3.2.0
+yamale>=3.0.4
+passlib>=1.7.4
+PyYAML>=5.4.1
+rich>=10.0.0

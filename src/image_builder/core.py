@@ -1,32 +1,3 @@
-#!/usr/bin/env python3
-
-"""
-Build script adapted from docker-py
-
-Refs:
-- https://docker-py.readthedocs.io/en/stable/images.html
-- https://github.com/docker/docker-py/blob/master/docker/utils/build.py
-- https://github.com/docker/docker-py/blob/master/docker/api/build.py
-- https://github.com/docker/docker-py/blob/master/docker/utils/decorators.py
-- https://github.com/docker/docker-py/blob/master/docker/utils/fnmatch.py
-- https://docs.docker.com/engine/context/working-with-contexts/
-- https://github.com/docker/docker-py/issues/538
-- https://github.com/docker/docker-py/pull/209
-- https://github.com/docker/docker-py/issues/974
-- https://github.com/docker/docker-py/issues/2079
-- https://github.com/docker/docker-py/issues/980
-- https://github.com/docker/docker-py/issues/2682
-- https://stackoverflow.com/questions/58204987/docker-python-client-not-building-image-from-custom-context
-- https://stackoverflow.com/questions/53743886/create-docker-from-tar-with-python-docker-api
-
-"""
-
-#@TODO:
-# - incorporate elements from these:
-#   https://raw.githubusercontent.com/bgruening/docker-build/master/build.py
-#   https://github.com/AlienVault-Engineering/pybuilder-docker/blob/master/src/main/python/pybuilder_docker/__init__.py
-#   https://github.com/stencila/dockta
-
 import os
 import io
 import re
@@ -53,8 +24,16 @@ from time import time, sleep
 from urllib.parse import quote, urljoin
 from tqdm import trange
 
+import yaml
+import yamale
+import coloredlogs
+from ruyaml import YAML
+from passlib.hash import bcrypt
+from rich import box
+from rich.live import Live
+from rich.table import Table
 
-### Define classes
+
 class BuildError(Exception):
     '''raise this when there's an Exception during the build process'''
 
@@ -322,85 +301,6 @@ class Logging(Basics):
         fh.setFormatter(formatter)
         self.log.addHandler(fh)
         return self.log
-
-
-class Setup(Logging):
-    def __init__(self):
-        Logging.__init__(self)
-        self.pip = ['pip3', '--version']
-    
-    def execute(self, cmd):
-        try:
-            return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        except FileNotFoundError:
-            self.logger.error("command not found: '{c}'".format(c=" ".join(cmd)))
-    
-    def exit_code(self, cmd, logger=None):
-        sp = self.execute(cmd)
-        if sp == None:
-            status = -1
-            return status
-        else:
-            status = sp.wait()
-            out, err = sp.communicate()
-            self.logger.debug("console: {o}".format(o=out.rstrip('\r\n')))
-            self.logger.debug("error: {e}".format(e=err))
-            return status
-    
-    def install(self, required_pkgs):
-        if not self.arg.force:
-            self.check_linux()
-        local_bin = Path(os.getenv("HOME"), ".local", "bin")
-        def is_installed(requirement):
-            import pkg_resources
-            try:
-                pkg_resources.require(requirement)
-            except pkg_resources.ResolutionError:
-                return False
-            else:
-                return True
-        def is_local_path_set():
-            exists = False
-            paths = os.getenv("PATH").split(":")
-            for p in paths:
-                if p == local_bin.as_posix():
-                    exists = True
-            return exists
-        if not is_local_path_set():
-            os.environ["PATH"] += os.pathsep + local_bin.as_posix()
-        for pkg in required_pkgs:
-            installed = is_installed(pkg)
-            if installed == False:
-                if not self.arg.force:
-                    self.check_pip()
-                p = pkg.split(">=")
-                self.logger.info(f"installing: '{p[0]}'")
-                if not self.arg.force: 
-                    if self.continue_input():
-                        subprocess.run(['pip3', 'install', pkg])
-                    else:
-                        sys.exit()
-                else:
-                    subprocess.run(['pip3', 'install', pkg])
-    
-    def check_pip(self):
-        exit_code = self.exit_code(self.pip)
-        if exit_code == 0:
-            self.logger.debug("Pip installation found")
-        else:
-            self.logger.error("Pip is not installed!")
-            sys.exit()
-
-    def check_linux(self):
-        sys_arch = platform.system()
-        if sys_arch == "Linux":
-            self.logger.debug(f"Running on: '{sys_arch}'")
-            is_linux = True
-            return True
-        else:
-            self.logger.warning(f"This script has not been tested on '{sys_arch}'")
-            if not self.continue_input():
-                sys.exit()
 
 
 class PushStatus(object):
@@ -1717,9 +1617,11 @@ class Docker(Operations):
 
 ### Define functions
 def split_path(p):
+    constants = Constants()
     return [pt for pt in re.split(constants._SEP, p) if pt and pt != '.']
 
 def normalize_slashes(p):
+    constants = Constants()
     if constants.IS_WINDOWS_PLATFORM:
         return '/'.join(split_path(p))
     return p
@@ -1746,6 +1648,7 @@ def fnmatchcase(name, pat):
     This is a version of fnmatch() which doesn't case-normalize
     its arguments.
     """
+    constants = Constants()
     try:
         re_pat = constants._cache[pat]
     except KeyError:
@@ -1810,30 +1713,8 @@ def translate(pat):
 
 
 def main():
-    ### Start builder
     docker = Docker()
     docker.build()
 
 if __name__ == '__main__':
-    setup = Setup()
-    setup.install([
-        'coloredlogs>=15.0', 
-        'ruyaml>=0.20.0'
-        'bcrypt>=3.2.0',
-        'yamale>=3.0.4',
-        'passlib>=1.7.4',
-        'PyYAML>=5.4.1',
-        'rich>=10.0.0',
-    ])
-    constants = Constants()
-
-    import yaml
-    import yamale
-    import coloredlogs
-    from ruyaml import YAML
-    from passlib.hash import bcrypt
-    from rich import box
-    from rich.live import Live
-    from rich.table import Table
-
     main()
